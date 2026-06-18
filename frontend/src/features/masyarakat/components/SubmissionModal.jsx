@@ -1,4 +1,5 @@
-import { useState, Fragment } from 'react';
+import { useMemo, useState, Fragment } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getRequirementStatus } from '../../../data/userDocuments';
 import { FLOW_STEP_LABELS } from '../../../data/serviceData.jsx';
 
@@ -499,30 +500,57 @@ const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack }) => {
 
 // ─── Main Modal ─────────────────────────────────────────────────────────────────
 const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
-  const [step, setStep] = useState(1);
-  
-  // Build initial form data with all specific fields
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const currentStep = useMemo(() => {
+    const rawStep = Number(searchParams.get("step") || 1);
+    if (Number.isNaN(rawStep)) return 1;
+    return Math.min(Math.max(rawStep, 1), 3);
+  }, [searchParams]);
+
   const buildInitialFormData = () => {
     const base = {
-      tempatLahir: '',
-      tanggalLahir: '',
-      jenisKelamin: 'Laki-laki',
-      agama: '',
-      pekerjaan: '',
-      alamat: '',
+      tempatLahir: "",
+      tanggalLahir: "",
+      jenisKelamin: "Laki-laki",
+      agama: "",
+      pekerjaan: "",
+      alamat: "",
     };
-    // Add all specific fields with empty defaults
-    (service?.specificFields || []).forEach(f => {
-      base[f.name] = '';
+
+    (service?.specificFields || []).forEach((field) => {
+      base[field.name] = "";
     });
+
     return base;
   };
 
-  const [formData, setFormData] = useState(buildInitialFormData);
+  const [formData, setFormData] = useState(() => buildInitialFormData());
+
+  const updateRoute = (updates, { replace = true } = {}) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace });
+  };
+
+  const updateStep = (nextStep, options) => {
+    updateRoute({ step: String(nextStep) }, options);
+  };
+
+  const handleClose = () => {
+    onClose?.();
+  };
 
   const handleSubmit = () => {
     onSuccess?.();
-    onClose();
+    handleClose();
   };
 
   const stepTitles = {
@@ -548,8 +576,8 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
         <div className="px-7 pt-7 pb-5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-start justify-between mb-1">
             <div>
-              <h2 className="text-base font-bold text-gray-900">{stepTitles[step]}</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{stepSubtitles[step]}</p>
+              <h2 className="text-base font-bold text-gray-900">{stepTitles[currentStep]}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{stepSubtitles[currentStep]}</p>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors ml-4 flex-shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -557,19 +585,19 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
               </svg>
             </button>
           </div>
-          <StepIndicator currentStep={step} />
+          <StepIndicator currentStep={currentStep} />
         </div>
 
         {/* Body - scrollable */}
         <div className="overflow-y-auto flex-1 px-7 py-5">
-          {step === 1 && (
-            <StepPersyaratan service={service} user={user} onNext={() => setStep(2)} onCancel={onClose} />
+          {currentStep === 1 && (
+            <StepPersyaratan service={service} user={user} onNext={() => updateStep(2)} onCancel={handleClose} />
           )}
-          {step === 2 && (
-            <StepFormulir service={service} user={user} formData={formData} setFormData={setFormData} onNext={() => setStep(3)} onBack={() => setStep(1)} />
+          {currentStep === 2 && (
+            <StepFormulir service={service} user={user} formData={formData} setFormData={setFormData} onNext={() => updateStep(3)} onBack={() => updateStep(1)} />
           )}
-          {step === 3 && (
-            <StepKonfirmasi service={service} user={user} formData={formData} onSubmit={handleSubmit} onBack={() => setStep(2)} />
+          {currentStep === 3 && (
+            <StepKonfirmasi service={service} user={user} formData={formData} onSubmit={handleSubmit} onBack={() => updateStep(2)} />
           )}
         </div>
       </div>

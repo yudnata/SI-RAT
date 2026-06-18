@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_SUBMISSIONS = [
   {
@@ -169,9 +170,33 @@ const DUMMY_SUBMISSIONS = [
 ];
 
 const PermohonanSuratPage = ({ user }) => {
-  const [selectedId, setSelectedId] = useState(null);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const selectedItem = DUMMY_SUBMISSIONS.find((item) => item.id === selectedId);
+  const selectedItemId = searchParams.get("item");
+  const selectedItem = useMemo(() => {
+    if (!selectedItemId) return null;
+
+    return DUMMY_SUBMISSIONS.find(
+      (item) => item.id.replace(/^#/, "") === selectedItemId,
+    ) ?? null;
+  }, [selectedItemId]);
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
+
+  const closeDetail = () => {
+    updateQuery({ item: "" });
+  };
 
   if (selectedItem) {
     return (
@@ -179,7 +204,7 @@ const PermohonanSuratPage = ({ user }) => {
         {/* Breadcrumb */}
         <div className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
           <button
-            onClick={() => setSelectedId(null)}
+            onClick={closeDetail}
             className="hover:text-blue-600 transition-colors"
           >
             Permohonan Surat Saya
@@ -624,7 +649,7 @@ const PermohonanSuratPage = ({ user }) => {
             return (
               <button
                 key={item.id}
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => updateQuery({ item: item.id.replace(/^#/, "") })}
                 className="w-full text-left py-4 flex items-center justify-between group hover:bg-gray-50/50 transition-all px-2.5 rounded-lg -mx-2.5"
               >
                 <div className="flex items-center gap-3.5">

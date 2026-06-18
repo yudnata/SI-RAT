@@ -55,7 +55,7 @@ const AjukanSuratPage = ({ user }) => {
 
   const handleSuccess = () => {
     setShowToast(true);
-    updateQuery({ service: "" });
+    updateQuery({ service: "", step: "" });
     setTimeout(() => {
       setShowToast(false);
     }, 4000);
@@ -160,7 +160,7 @@ const AjukanSuratPage = ({ user }) => {
               key={service.id}
               service={service}
               onSelect={(selected) =>
-                updateQuery({ service: selected.id })
+                updateQuery({ service: selected.id, step: "1" })
               }
             />
           ))}
@@ -192,9 +192,10 @@ const AjukanSuratPage = ({ user }) => {
       {/* Submission Modal Component */}
       {selectedService && (
         <SubmissionModal
+          key={selectedService.id}
           service={selectedService}
           user={user}
-          onClose={() => updateQuery({ service: "" })}
+          onClose={() => updateQuery({ service: "", step: "" })}
           onSuccess={handleSuccess}
         />
       )}
