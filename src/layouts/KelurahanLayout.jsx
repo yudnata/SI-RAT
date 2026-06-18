@@ -1,6 +1,9 @@
-import Sidebar from '../components/Sidebar';
-import Topbar from '../components/Topbar';
-import { KELURAHAN_NAV_ITEMS, KELURAHAN_BOTTOM_ITEMS } from '../features/kelurahan/kelurahanNav';
+import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
+import {
+  KELURAHAN_NAV_ITEMS,
+  KELURAHAN_BOTTOM_ITEMS,
+} from "../features/kelurahan/kelurahanNav";
 
 /**
  * KelurahanLayout
@@ -18,13 +21,8 @@ const KelurahanLayout = ({ activePage, onNavigate, user, children }) => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar
-          user={{ ...user, role: 'Admin Portal' }}
-          notifCount={1}
-        />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+        <Topbar user={{ ...user, role: "Admin Portal" }} notifCount={1} />
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );

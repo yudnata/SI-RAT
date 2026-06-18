@@ -1,6 +1,9 @@
-import Sidebar from '../components/Sidebar';
-import Topbar from '../components/Topbar';
-import { KALING_NAV_ITEMS, KALING_BOTTOM_ITEMS } from '../features/kaling/kalingNav';
+import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
+import {
+  KALING_NAV_ITEMS,
+  KALING_BOTTOM_ITEMS,
+} from "../features/kaling/kalingNav";
 
 /**
  * KalingLayout
@@ -18,13 +21,8 @@ const KalingLayout = ({ activePage, onNavigate, user, children }) => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar
-          user={{ ...user, role: 'Neighborhood Head' }}
-          notifCount={1}
-        />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+        <Topbar user={{ ...user, role: "Neighborhood Head" }} notifCount={1} />
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );

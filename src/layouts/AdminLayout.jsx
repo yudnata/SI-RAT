@@ -1,6 +1,9 @@
-import Sidebar from '../components/Sidebar';
-import Topbar from '../components/Topbar';
-import { ADMIN_NAV_ITEMS, ADMIN_BOTTOM_ITEMS } from '../features/admin/adminNav';
+import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
+import {
+  ADMIN_NAV_ITEMS,
+  ADMIN_BOTTOM_ITEMS,
+} from "../features/admin/adminNav";
 
 /**
  * AdminLayout
@@ -18,13 +21,8 @@ const AdminLayout = ({ activePage, onNavigate, user, children }) => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar
-          user={{ ...user, role: 'Super Admin' }}
-          notifCount={3}
-        />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+        <Topbar user={{ ...user, role: "Super Admin" }} notifCount={3} />
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );

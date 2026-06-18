@@ -1,6 +1,9 @@
-import Sidebar from '../components/Sidebar';
-import Topbar from '../components/Topbar';
-import { MASYARAKAT_NAV_ITEMS, MASYARAKAT_BOTTOM_ITEMS } from '../features/masyarakat/masyarakatNav';
+import Sidebar from "../components/Sidebar";
+import Topbar from "../components/Topbar";
+import {
+  MASYARAKAT_NAV_ITEMS,
+  MASYARAKAT_BOTTOM_ITEMS,
+} from "../features/masyarakat/masyarakatNav";
 
 /**
  * MasyarakatLayout
@@ -19,13 +22,8 @@ const MasyarakatLayout = ({ activePage, onNavigate, user, children }) => {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar
-          user={{ ...user, role: 'Masyarakat' }}
-          notifCount={1}
-        />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+        <Topbar user={{ ...user, role: "Masyarakat" }} notifCount={1} />
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );

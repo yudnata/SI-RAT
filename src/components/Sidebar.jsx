@@ -1,4 +1,3 @@
-
 /**
  * Sidebar - Shared sidebar component used across ALL roles.
  *
@@ -9,7 +8,12 @@
  * - `onNavigate`: function     - Callback when a nav item is clicked
  * - `bottomItems`: array (opt) - Extra nav items shown at the bottom (e.g. Pengaturan)
  */
-const Sidebar = ({ navItems = [], bottomItems = [], activePage, onNavigate }) => {
+const Sidebar = ({
+  navItems = [],
+  bottomItems = [],
+  activePage,
+  onNavigate,
+}) => {
   const NavButton = ({ item }) => {
     const isActive = activePage === item.id;
     return (
@@ -17,13 +21,16 @@ const Sidebar = ({ navItems = [], bottomItems = [], activePage, onNavigate }) =>
         key={item.id}
         onClick={() => onNavigate(item.id)}
         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left
-          ${isActive
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+          ${
+            isActive
+              ? "bg-blue-50 text-blue-700"
+              : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
           }`}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+          <span
+            className={`flex-shrink-0 ${isActive ? "text-blue-600" : "text-gray-400"}`}
+          >
             {item.icon}
           </span>
           <span className="leading-tight truncate">{item.label}</span>
@@ -36,7 +43,9 @@ const Sidebar = ({ navItems = [], bottomItems = [], activePage, onNavigate }) =>
     <aside className="w-60 min-h-screen bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
       {/* Brand / Logo - Balanced with Topbar height (h-14) */}
       <div className="h-14 px-6 border-b border-gray-100 flex items-center flex-shrink-0">
-        <span className="text-blue-600 font-extrabold text-[15px] tracking-wider uppercase">SI - Hari</span>
+        <span className="text-blue-600 font-extrabold text-[15px] tracking-wider uppercase">
+          SI - Hari
+        </span>
       </div>
 
       {/* Main navigation */}
