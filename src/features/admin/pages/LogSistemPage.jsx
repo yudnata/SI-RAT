@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_LOGS = [
   {
@@ -65,8 +66,22 @@ const DUMMY_LOGS = [
 
 const LogSistemPage = () => {
   const [logs] = useState(DUMMY_LOGS);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("All");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get("q") || "";
+  const filterType = searchParams.get("type") || "All";
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =
@@ -114,14 +129,14 @@ const LogSistemPage = () => {
             type="text"
             placeholder="Cari kata kunci detail log, pelaku, atau kategori..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => updateQuery({ q: e.target.value })}
             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg text-xs transition-all text-gray-800"
           />
         </div>
 
         <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
           <button
-            onClick={() => setFilterType("All")}
+            onClick={() => updateQuery({ type: "All" })}
             className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all border ${
               filterType === "All"
                 ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -131,7 +146,7 @@ const LogSistemPage = () => {
             Semua
           </button>
           <button
-            onClick={() => setFilterType("success")}
+            onClick={() => updateQuery({ type: "success" })}
             className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all border ${
               filterType === "success"
                 ? "bg-emerald-50 text-emerald-700 border-emerald-250"
@@ -141,7 +156,7 @@ const LogSistemPage = () => {
             Success
           </button>
           <button
-            onClick={() => setFilterType("info")}
+            onClick={() => updateQuery({ type: "info" })}
             className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all border ${
               filterType === "info"
                 ? "bg-blue-50 text-blue-700 border-blue-250"
@@ -151,7 +166,7 @@ const LogSistemPage = () => {
             Info
           </button>
           <button
-            onClick={() => setFilterType("warning")}
+            onClick={() => updateQuery({ type: "warning" })}
             className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all border ${
               filterType === "warning"
                 ? "bg-amber-50 text-amber-700 border-amber-250"
@@ -161,7 +176,7 @@ const LogSistemPage = () => {
             Warning
           </button>
           <button
-            onClick={() => setFilterType("danger")}
+            onClick={() => updateQuery({ type: "danger" })}
             className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all border ${
               filterType === "danger"
                 ? "bg-red-50 text-red-700 border-red-250"

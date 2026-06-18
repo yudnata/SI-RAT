@@ -1,4 +1,5 @@
 import { useState, Fragment } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   SERVICES,
   FLOW_STEP_LABELS,
@@ -797,10 +798,28 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 const ValidasiSuratPage = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [list, setList] = useState(DUMMY_PENDING_LETTERS);
-  const [activeTab, setActiveTab] = useState("Semua");
-  const [selectedItem, setSelectedItem] = useState(null);
+  const activeTab = searchParams.get("tab") || "all";
+  const searchTerm = searchParams.get("q") || "";
+  const statusFilter = searchParams.get("status") || "Semua Status";
+  const selectedItemId = searchParams.get("item");
+  const selectedItem =
+    list.find((item) => String(item.id) === String(selectedItemId)) || null;
   const [toast, setToast] = useState(null);
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const getService = (serviceId) =>
     SERVICES.find((s) => s.id === serviceId) || {
@@ -813,6 +832,7 @@ const ValidasiSuratPage = () => {
   const handleApprove = (item, sigData) => {
     const service = getService(item.serviceId);
     setList((prev) => prev.filter((p) => p.id !== item.id));
+    updateQuery({ item: "" });
     const sigType =
       sigData?.method === "tte"
         ? "dengan TTE BSrE"
@@ -826,6 +846,7 @@ const ValidasiSuratPage = () => {
 
   const handleReject = (item) => {
     setList((prev) => prev.filter((p) => p.id !== item.id));
+    updateQuery({ item: "" });
     setToast(`Permohonan surat ${item.name} telah ditolak`);
     setTimeout(() => setToast(null), 4000);
   };
@@ -906,11 +927,19 @@ const ValidasiSuratPage = () => {
             <input
               type="text"
               placeholder="Cari Surat..."
+              value={searchTerm}
+              onChange={(e) => updateQuery({ q: e.target.value })}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <select className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select
+            value={statusFilter}
+            onChange={(e) => updateQuery({ status: e.target.value })}
+            className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
             <option>Semua Status</option>
+            <option>Sudah Kaling</option>
+            <option>Langsung</option>
           </select>
           <button className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <svg
@@ -932,18 +961,22 @@ const ValidasiSuratPage = () => {
 
         {/* Tab filters */}
         <div className="flex gap-2">
-          {[`Semua (${list.length})`, "Dari Kaling", "Langsung"].map((tab) => (
+          {[
+            { key: "all", label: `Semua (${list.length})` },
+            { key: "kaling", label: "Dari Kaling" },
+            { key: "langsung", label: "Langsung" },
+          ].map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={tab.key}
+              onClick={() => updateQuery({ tab: tab.key })}
               className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200
                 ${
-                  activeTab === tab
+                  activeTab === tab.key
                     ? "bg-blue-600 text-white shadow-sm"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -961,7 +994,23 @@ const ValidasiSuratPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
-              {list.map((item) => {
+              {list
+                .filter((item) => {
+                  const matchesSearch =
+                    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.nik.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.origin.toLowerCase().includes(searchTerm.toLowerCase());
+                  const matchesTab =
+                    activeTab === "all" ||
+                    (activeTab === "kaling" && item.kalingApproved) ||
+                    (activeTab === "langsung" && !item.kalingApproved);
+                  const matchesStatus =
+                    statusFilter === "Semua Status" ||
+                    (statusFilter === "Sudah Kaling" && item.kalingApproved) ||
+                    (statusFilter === "Langsung" && !item.kalingApproved);
+                  return matchesSearch && matchesTab && matchesStatus;
+                })
+                .map((item) => {
                 const service = getService(item.serviceId);
                 return (
                   <tr
@@ -1026,7 +1075,7 @@ const ValidasiSuratPage = () => {
                     <td className="px-6 py-4 text-gray-400">{item.date}</td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setSelectedItem(item)}
+                        onClick={() => updateQuery({ item: item.id })}
                         className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold transition-all"
                       >
                         Validasi
@@ -1035,7 +1084,21 @@ const ValidasiSuratPage = () => {
                   </tr>
                 );
               })}
-              {list.length === 0 && (
+              {list.filter((item) => {
+                const matchesSearch =
+                  item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  item.nik.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  item.origin.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesTab =
+                  activeTab === "all" ||
+                  (activeTab === "kaling" && item.kalingApproved) ||
+                  (activeTab === "langsung" && !item.kalingApproved);
+                const matchesStatus =
+                  statusFilter === "Semua Status" ||
+                  (statusFilter === "Sudah Kaling" && item.kalingApproved) ||
+                  (statusFilter === "Langsung" && !item.kalingApproved);
+                return matchesSearch && matchesTab && matchesStatus;
+              }).length === 0 && (
                 <tr>
                   <td
                     colSpan={5}
@@ -1086,7 +1149,7 @@ const ValidasiSuratPage = () => {
         <DetailModal
           item={selectedItem}
           service={getService(selectedItem.serviceId)}
-          onClose={() => setSelectedItem(null)}
+          onClose={() => updateQuery({ item: "" })}
           onApprove={handleApprove}
           onReject={handleReject}
         />

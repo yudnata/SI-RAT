@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { SERVICES as SHARED_SERVICES } from "../../../data/serviceData.jsx";
 
 const AVAILABLE_REQUIREMENTS = [
@@ -32,8 +33,11 @@ const DUMMY_SERVICES = buildInitialServices();
 
 const ManajemenLayananPage = () => {
   const [services, setServices] = useState(DUMMY_SERVICES);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const routeSearchQuery = searchParams.get("q") || "";
+  const routeModal = searchParams.get("modal");
+  const routeIsModalOpen = routeModal === "add" || routeModal === "edit";
 
   // Edit mode states
   const [isEditMode, setIsEditMode] = useState(false);
@@ -44,6 +48,18 @@ const ManajemenLayananPage = () => {
   const [formCategory, setFormCategory] = useState("Kependudukan");
   const [selectedReqKeys, setSelectedReqKeys] = useState(["ktp", "kk"]);
   const [formFlow, setFormFlow] = useState("Kaling ➔ Kelurahan");
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const handleSaveService = (e) => {
     e.preventDefault();
@@ -82,7 +98,7 @@ const ManajemenLayananPage = () => {
       setServices([newService, ...services]);
     }
 
-    setIsModalOpen(false);
+    updateQuery({ modal: "", id: "" });
     setIsEditMode(false);
     setSelectedServiceId(null);
 
@@ -100,7 +116,7 @@ const ManajemenLayananPage = () => {
     setFormCategory(service.category);
     setFormFlow(service.flow);
     setSelectedReqKeys(service.requirementKeys || []);
-    setIsModalOpen(true);
+    updateQuery({ modal: "edit", id: String(service.id) });
   };
 
   const handleAddNewClick = () => {
@@ -110,7 +126,7 @@ const ManajemenLayananPage = () => {
     setFormCategory("Kependudukan");
     setSelectedReqKeys(["ktp", "kk"]);
     setFormFlow("Kaling ➔ Kelurahan");
-    setIsModalOpen(true);
+    updateQuery({ modal: "add", id: "" });
   };
 
   const toggleActive = (id) => {
@@ -136,8 +152,8 @@ const ManajemenLayananPage = () => {
 
   const filteredServices = services.filter(
     (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.category.toLowerCase().includes(searchQuery.toLowerCase()),
+      s.name.toLowerCase().includes(routeSearchQuery.toLowerCase()) ||
+      s.category.toLowerCase().includes(routeSearchQuery.toLowerCase()),
   );
 
   return (
@@ -195,8 +211,8 @@ const ManajemenLayananPage = () => {
           <input
             type="text"
             placeholder="Cari jenis surat atau kategori..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={routeSearchQuery}
+            onChange={(e) => updateQuery({ q: e.target.value })}
             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg text-xs transition-all text-gray-800"
           />
         </div>
@@ -289,7 +305,7 @@ const ManajemenLayananPage = () => {
       </div>
 
       {/* Add Service Modal */}
-      {isModalOpen && (
+      {routeIsModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-950/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white border border-gray-200 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -299,7 +315,7 @@ const ManajemenLayananPage = () => {
                   : "Tambah Layanan Surat Baru"}
               </h3>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => updateQuery({ modal: "", id: "" })}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ✕
@@ -393,7 +409,7 @@ const ManajemenLayananPage = () => {
               <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => updateQuery({ modal: "", id: "" })}
                   className="px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-500"
                 >
                   Batal

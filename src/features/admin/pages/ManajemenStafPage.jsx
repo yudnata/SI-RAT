@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_STAF = [
   {
@@ -44,10 +45,12 @@ const DUMMY_STAF = [
 ];
 
 const ManajemenStafPage = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [stafList, setStafList] = useState(DUMMY_STAF);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterRole, setFilterRole] = useState("All");
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const searchQuery = searchParams.get("q") || "";
+  const filterRole = searchParams.get("role") || "All";
+  const isModalOpen = searchParams.get("modal") === "add";
 
   // Form State
   const [formName, setFormName] = useState("");
@@ -57,6 +60,18 @@ const ManajemenStafPage = () => {
   const [formPassword, setFormPassword] = useState("");
   const [formConfirmPassword, setFormConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const handleAddStaf = (e) => {
     e.preventDefault();
@@ -77,7 +92,7 @@ const ManajemenStafPage = () => {
     };
 
     setStafList([newStaf, ...stafList]);
-    setIsModalOpen(false);
+    updateQuery({ modal: "" });
 
     // Reset Form
     setFormName("");
@@ -134,7 +149,7 @@ const ManajemenStafPage = () => {
           </p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => updateQuery({ modal: "add" })}
           className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs transition-all shadow-md"
         >
           <svg
@@ -176,14 +191,14 @@ const ManajemenStafPage = () => {
             type="text"
             placeholder="Cari nama staf, email, atau wilayah tugas..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => updateQuery({ q: e.target.value })}
             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg text-xs transition-all text-gray-800"
           />
         </div>
 
         <div className="flex gap-2 w-full md:w-auto justify-end">
           <button
-            onClick={() => setFilterRole("All")}
+            onClick={() => updateQuery({ role: "All" })}
             className={`px-3 py-2 text-[10px] font-bold rounded-lg transition-all border ${
               filterRole === "All"
                 ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -193,7 +208,7 @@ const ManajemenStafPage = () => {
             Semua
           </button>
           <button
-            onClick={() => setFilterRole("Kelurahan")}
+            onClick={() => updateQuery({ role: "Kelurahan" })}
             className={`px-3 py-2 text-[10px] font-bold rounded-lg transition-all border ${
               filterRole === "Kelurahan"
                 ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -203,7 +218,7 @@ const ManajemenStafPage = () => {
             Kelurahan
           </button>
           <button
-            onClick={() => setFilterRole("Kaling")}
+            onClick={() => updateQuery({ role: "Kaling" })}
             className={`px-3 py-2 text-[10px] font-bold rounded-lg transition-all border ${
               filterRole === "Kaling"
                 ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -309,7 +324,7 @@ const ManajemenStafPage = () => {
                 Tambah Akun Staf Baru
               </h3>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => updateQuery({ modal: "" })}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ✕
@@ -424,7 +439,7 @@ const ManajemenStafPage = () => {
               <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => updateQuery({ modal: "" })}
                   className="px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-500"
                 >
                   Batal

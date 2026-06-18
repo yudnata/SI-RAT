@@ -1,4 +1,5 @@
 import { useState, Fragment } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   SERVICES,
   FLOW_STEP_LABELS,
@@ -592,12 +593,27 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 const PerluVerifikasiPage = ({ list, setList }) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [localList, setLocalList] = useState(DUMMY_PENDING);
   const activeList = list !== undefined ? list : localList;
   const activeSetList = setList !== undefined ? setList : setLocalList;
-
-  const [selectedItem, setSelectedItem] = useState(null);
   const [toast, setToast] = useState(null);
+  const selectedItemId = searchParams.get("item");
+  const selectedItem =
+    activeList.find((item) => String(item.id) === String(selectedItemId)) || null;
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const getService = (serviceId) =>
     SERVICES.find((s) => s.id === serviceId) || {
@@ -609,7 +625,7 @@ const PerluVerifikasiPage = ({ list, setList }) => {
 
   const handleApprove = (item, forwarded) => {
     activeSetList((prev) => prev.filter((p) => p.id !== item.id));
-    setSelectedItem(null);
+    updateQuery({ item: "" });
     const msg = forwarded
       ? `Permohonan ${item.name} disetujui & diteruskan ke Kelurahan`
       : `Surat Pengantar untuk ${item.name} berhasil diterbitkan`;
@@ -619,7 +635,7 @@ const PerluVerifikasiPage = ({ list, setList }) => {
 
   const handleReject = (item) => {
     activeSetList((prev) => prev.filter((p) => p.id !== item.id));
-    setSelectedItem(null);
+    updateQuery({ item: "" });
     setToast(`Permohonan ${item.name} telah ditolak`);
     setTimeout(() => setToast(null), 4000);
   };
@@ -718,7 +734,7 @@ const PerluVerifikasiPage = ({ list, setList }) => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setSelectedItem(item)}
+                        onClick={() => updateQuery({ item: item.id })}
                         className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold transition-all"
                       >
                         Verifikasi
@@ -781,7 +797,7 @@ const PerluVerifikasiPage = ({ list, setList }) => {
         <DetailModal
           item={selectedItem}
           service={getService(selectedItem.serviceId)}
-          onClose={() => setSelectedItem(null)}
+          onClose={() => updateQuery({ item: "" })}
           onApprove={handleApprove}
           onReject={handleReject}
         />

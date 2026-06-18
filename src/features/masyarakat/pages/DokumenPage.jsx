@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_PERSONAL_DOCS = [
   {
@@ -102,15 +103,29 @@ const DOC_STYLES = {
 };
 
 const DokumenPage = () => {
-  const [filter, setFilter] = useState("Semua");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const filter = searchParams.get("filter") || "Semua";
   const [personalDocs, setPersonalDocs] = useState(DUMMY_PERSONAL_DOCS);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const isModalOpen = searchParams.get("modal") === "add";
 
   // Form state
   const [docType, setDocType] = useState("KTP");
   const [docName, setDocName] = useState(DOC_STYLES["KTP"].name);
   const [docNumber, setDocNumber] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -128,7 +143,7 @@ const DokumenPage = () => {
       layout: docType.toLowerCase(),
     };
     setPersonalDocs([newDoc, ...personalDocs]);
-    setIsModalOpen(false);
+    updateQuery({ modal: "" });
 
     // Reset form
     setDocType("KTP");
@@ -157,7 +172,7 @@ const DokumenPage = () => {
           {["Semua", "Identitas Diri", "Dokumen Terbit"].map((t) => (
             <button
               key={t}
-              onClick={() => setFilter(t)}
+              onClick={() => updateQuery({ filter: t })}
               className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
                 ${
                   filter === t
@@ -209,7 +224,7 @@ const DokumenPage = () => {
               Identitas Diri
             </h2>
             <button
-              onClick={() => setIsModalOpen(true)}
+            onClick={() => updateQuery({ modal: "add" })}
               className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
             >
               <svg
@@ -479,7 +494,7 @@ const DokumenPage = () => {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100 flex flex-col gap-4 relative animate-scaleIn">
             {/* Close button */}
             <button
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => updateQuery({ modal: "" })}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <svg
@@ -592,7 +607,7 @@ const DokumenPage = () => {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => updateQuery({ modal: "" })}
                   className="flex-1 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
                 >
                   Batal

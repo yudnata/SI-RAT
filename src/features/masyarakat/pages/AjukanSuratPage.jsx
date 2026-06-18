@@ -1,19 +1,35 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import ServiceCard from "../components/ServiceCard";
 import SubmissionModal from "../components/SubmissionModal";
 import { SERVICES, getServiceIcon } from "../../../data/serviceData.jsx";
 
 const AjukanSuratPage = ({ user }) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("Semua");
-  const [selectedService, setSelectedService] = useState(null);
   const [showToast, setShowToast] = useState(false);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const activeTab = searchParams.get("tab") || "Semua";
+  const searchTerm = searchParams.get("q") || "";
+  const selectedServiceId = searchParams.get("service");
 
   // Enrich SERVICES with their icon components for rendering
-  const enrichedServices = SERVICES.map((s) => ({
-    ...s,
-    icon: getServiceIcon(s.id),
-  }));
+  const enrichedServices = useMemo(
+    () =>
+      SERVICES.map((s) => ({
+        ...s,
+        icon: getServiceIcon(s.id),
+      })),
+    [],
+  );
+
+  const selectedService = useMemo(
+    () =>
+      selectedServiceId
+        ? enrichedServices.find((service) => service.id === selectedServiceId)
+        : null,
+    [enrichedServices, selectedServiceId],
+  );
 
   const filteredServices = enrichedServices.filter((service) => {
     const matchesSearch = service.name
@@ -25,8 +41,21 @@ const AjukanSuratPage = ({ user }) => {
     return matchesSearch && matchesTab;
   });
 
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
+
   const handleSuccess = () => {
     setShowToast(true);
+    updateQuery({ service: "" });
     setTimeout(() => {
       setShowToast(false);
     }, 4000);
@@ -83,7 +112,7 @@ const AjukanSuratPage = ({ user }) => {
           ].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => updateQuery({ tab, service: "" })}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200
                 ${
                   activeTab === tab
@@ -117,7 +146,7 @@ const AjukanSuratPage = ({ user }) => {
             type="text"
             placeholder="Cari layanan surat..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => updateQuery({ q: e.target.value })}
             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
@@ -130,7 +159,9 @@ const AjukanSuratPage = ({ user }) => {
             <ServiceCard
               key={service.id}
               service={service}
-              onSelect={setSelectedService}
+              onSelect={(selected) =>
+                updateQuery({ service: selected.id })
+              }
             />
           ))}
         </div>
@@ -163,7 +194,7 @@ const AjukanSuratPage = ({ user }) => {
         <SubmissionModal
           service={selectedService}
           user={user}
-          onClose={() => setSelectedService(null)}
+          onClose={() => updateQuery({ service: "" })}
           onSuccess={handleSuccess}
         />
       )}

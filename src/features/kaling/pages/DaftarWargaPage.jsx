@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_CITIZENS = [
   {
@@ -68,15 +68,29 @@ const DUMMY_CITIZENS = [
 ];
 
 const DaftarWargaPage = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Semua Status");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const routeSearch = searchParams.get("q") || "";
+  const routeStatus = searchParams.get("status") || "Semua Status";
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const filteredCitizens = DUMMY_CITIZENS.filter((item) => {
     const matchesSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.job.toLowerCase().includes(searchTerm.toLowerCase());
+      item.name.toLowerCase().includes(routeSearch.toLowerCase()) ||
+      item.job.toLowerCase().includes(routeSearch.toLowerCase());
     const matchesStatus =
-      statusFilter === "Semua Status" || item.status === statusFilter;
+      routeStatus === "Semua Status" || item.status === routeStatus;
     return matchesSearch && matchesStatus;
   });
 
@@ -113,16 +127,16 @@ const DaftarWargaPage = () => {
           <input
             type="text"
             placeholder="Cari nama, NIK, atau pekerjaan..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={routeSearch}
+            onChange={(e) => updateQuery({ q: e.target.value })}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
         {/* Dropdown status */}
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={routeStatus}
+          onChange={(e) => updateQuery({ status: e.target.value })}
           className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
         >
           <option>Semua Status</option>

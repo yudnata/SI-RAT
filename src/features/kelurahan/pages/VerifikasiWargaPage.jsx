@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_CITIZEN_QUEUE = [
   {
@@ -49,17 +50,33 @@ const DUMMY_CITIZEN_QUEUE = [
 ];
 
 const VerifikasiWargaPage = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [list, setList] = useState(DUMMY_CITIZEN_QUEUE);
-  const [selectedWarga, setSelectedWarga] = useState(null);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const selectedItemId = searchParams.get("item");
+  const selectedIndex = list.findIndex(
+    (item) => String(item.id ?? item.nik) === String(selectedItemId),
+  );
+  const selectedWarga = selectedIndex >= 0 ? list[selectedIndex] : null;
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const handleApprove = () => {
     if (selectedIndex === -1) return;
     const updated = [...list];
     updated[selectedIndex].status = "Disetujui";
     setList(updated);
-    setSelectedWarga(null);
-    setSelectedIndex(-1);
+    updateQuery({ item: "" });
   };
 
   const handleReject = () => {
@@ -67,8 +84,7 @@ const VerifikasiWargaPage = () => {
     const updated = [...list];
     updated[selectedIndex].status = "Ditolak";
     setList(updated);
-    setSelectedWarga(null);
-    setSelectedIndex(-1);
+    updateQuery({ item: "" });
   };
 
   return (
@@ -188,8 +204,7 @@ const VerifikasiWargaPage = () => {
                       {item.status === "Menunggu" ? (
                         <button
                           onClick={() => {
-                            setSelectedWarga(item);
-                            setSelectedIndex(idx);
+                            updateQuery({ item: item.id ?? item.nik });
                           }}
                           className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold transition-all"
                         >
@@ -198,8 +213,7 @@ const VerifikasiWargaPage = () => {
                       ) : (
                         <button
                           onClick={() => {
-                            setSelectedWarga(item);
-                            setSelectedIndex(idx);
+                            updateQuery({ item: item.id ?? item.nik });
                           }}
                           className="p-1 text-gray-400 hover:text-gray-650 rounded transition-all"
                           aria-label="Lihat Detail"
@@ -260,10 +274,9 @@ const VerifikasiWargaPage = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all animate-fadeIn">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-gray-100 flex flex-col gap-4 relative animate-scaleIn">
             {/* Close button */}
-            <button
+              <button
               onClick={() => {
-                setSelectedWarga(null);
-                setSelectedIndex(-1);
+                updateQuery({ item: "" });
               }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >

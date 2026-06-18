@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const DUMMY_HISTORY = [
   {
@@ -53,8 +53,24 @@ const DUMMY_HISTORY = [
 ];
 
 const RiwayatVerifikasiPage = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Semua Status");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const searchTerm = searchParams.get("q") || "";
+  const statusFilter = searchParams.get("status") || "Semua Status";
+  const serviceFilter = searchParams.get("service") || "Semua Jenis";
+  const dateFilter = searchParams.get("date") || "";
+
+  const updateQuery = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    navigate({ search: next.toString() }, { replace: true });
+  };
 
   const filteredHistory = DUMMY_HISTORY.filter((item) => {
     const matchesSearch = item.name
@@ -62,7 +78,10 @@ const RiwayatVerifikasiPage = () => {
       .includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "Semua Status" || item.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesService =
+      serviceFilter === "Semua Jenis" || item.service === serviceFilter;
+    const matchesDate = !dateFilter || item.date.includes(dateFilter);
+    return matchesSearch && matchesStatus && matchesService && matchesDate;
   });
 
   return (
@@ -99,7 +118,7 @@ const RiwayatVerifikasiPage = () => {
                 type="text"
                 placeholder="Nama warga..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => updateQuery({ q: e.target.value })}
                 className="w-full pl-10 pr-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -107,7 +126,11 @@ const RiwayatVerifikasiPage = () => {
 
           <div>
             <label className="block mb-1.5">Jenis Surat</label>
-            <select className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <select
+              value={serviceFilter}
+              onChange={(e) => updateQuery({ service: e.target.value })}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
               <option>Semua Jenis</option>
               <option>Surat Pengantar KTP</option>
               <option>Domisili Usaha</option>
@@ -121,7 +144,7 @@ const RiwayatVerifikasiPage = () => {
             <label className="block mb-1.5">Status</label>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => updateQuery({ status: e.target.value })}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
               <option>Semua Status</option>
@@ -134,6 +157,8 @@ const RiwayatVerifikasiPage = () => {
             <label className="block mb-1.5">Rentang Tanggal</label>
             <input
               type="date"
+              value={dateFilter}
+              onChange={(e) => updateQuery({ date: e.target.value })}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
