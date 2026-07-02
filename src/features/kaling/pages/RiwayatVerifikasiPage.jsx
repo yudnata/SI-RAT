@@ -1,88 +1,58 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
-
-const DUMMY_HISTORY = [
-  {
-    name: "IVAN FROM CHINA",
-    block: "Blok A No. 12",
-    service: "Surat Pengantar KTP",
-    date: "12 Okt 2023, 14:20",
-    status: "Disetujui",
-  },
-  {
-    name: "Siti Pertiwi",
-    block: "Blok C No. 04",
-    service: "Domisili Usaha",
-    date: "11 Okt 2023, 09:15",
-    status: "Ditolak",
-  },
-  {
-    name: "Bambang Pamungkas",
-    block: "Blok B No. 22",
-    service: "Izin Keramaian",
-    date: "10 Okt 2023, 16:45",
-    status: "Disetujui",
-  },
-  {
-    name: "Dewi Wahyuni",
-    block: "Blok D No. 01",
-    service: "Keterangan Pindah",
-    date: "09 Okt 2023, 11:30",
-    status: "Disetujui",
-  },
-  {
-    name: "Rizky Kurniawan",
-    block: "Blok A No. 05",
-    service: "Surat Keterangan Kematian",
-    date: "08 Okt 2023, 10:05",
-    status: "Ditolak",
-  },
-  {
-    name: "Rizky Kurniawan",
-    block: "Blok A No. 05",
-    service: "Surat Keterangan Kematian",
-    date: "08 Okt 2023, 10:05",
-    status: "Ditolak",
-  },
-  {
-    name: "Rizky Kurniawan",
-    block: "Blok A No. 05",
-    service: "Surat Keterangan Kematian",
-    date: "08 Okt 2023, 10:05",
-    status: "Ditolak",
-  },
-];
+import { useState, useEffect, useMemo } from "react";
+import { api } from "../../../utils/api.js";
 
 const RiwayatVerifikasiPage = () => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const searchTerm = searchParams.get("q") || "";
-  const statusFilter = searchParams.get("status") || "Semua Status";
-  const serviceFilter = searchParams.get("service") || "Semua Jenis";
-  const dateFilter = searchParams.get("date") || "";
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("Semua Status");
+  const [serviceFilter, setServiceFilter] = useState("Semua Jenis");
 
-  const updateQuery = (updates) => {
-    const next = new URLSearchParams(searchParams);
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === "") {
-        next.delete(key);
-      } else {
-        next.set(key, value);
-      }
-    });
-    navigate({ search: next.toString() }, { replace: true });
+  const fetchHistory = async () => {
+    try {
+      const response = await api.get("/submissions/kaling/history");
+      const mapped = (response.data.submissions || []).map((item) => {
+        const isApproved = !["DITOLAK", "DITOLAK_KALING"].includes(item.status);
+        return {
+          id: item.id,
+          name: item.user.namaLengkap,
+          block: item.user.domisili || "Banjar Tegal",
+          service: item.service.name,
+          date: new Date(item.updatedAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }),
+          status: isApproved ? "Disetujui" : "Ditolak",
+        };
+      });
+      setHistory(mapped);
+    } catch (err) {
+      console.error("Gagal mengambil riwayat verifikasi:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredHistory = DUMMY_HISTORY.filter((item) => {
-    const matchesSearch = item.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "Semua Status" || item.status === statusFilter;
-    const matchesService =
-      serviceFilter === "Semua Jenis" || item.service === serviceFilter;
-    const matchesDate = !dateFilter || item.date.includes(dateFilter);
-    return matchesSearch && matchesStatus && matchesService && matchesDate;
-  });
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const filteredHistory = useMemo(() => {
+    return history.filter((item) => {
+      const matchesSearch = item.name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        statusFilter === "Semua Status" || item.status === statusFilter;
+      const matchesService =
+        serviceFilter === "Semua Jenis" || item.service === serviceFilter;
+      return matchesSearch && matchesStatus && matchesService;
+    });
+  }, [history, searchTerm, statusFilter, serviceFilter]);
+
+  // Extract unique service names for select dropdown
+  const uniqueServices = useMemo(() => {
+    const services = new Set(history.map(item => item.service));
+    return ["Semua Jenis", ...Array.from(services)];
+  }, [history]);
 
   return (
     <div className="w-full space-y-6 pb-12">
@@ -91,11 +61,14 @@ const RiwayatVerifikasiPage = () => {
         <h1 className="text-xl font-extrabold text-gray-900">
           Riwayat Verifikasi
         </h1>
+        <p className="text-xs text-gray-400 mt-0.5 font-medium">
+          Daftar seluruh keputusan permohonan warga yang telah Anda proses.
+        </p>
       </div>
 
       {/* Filter bar */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-semibold text-gray-500">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold text-gray-500">
           <div>
             <label className="block mb-1.5">Cari Nama</label>
             <div className="relative">
@@ -118,8 +91,8 @@ const RiwayatVerifikasiPage = () => {
                 type="text"
                 placeholder="Nama warga..."
                 value={searchTerm}
-                onChange={(e) => updateQuery({ q: e.target.value })}
-                className="w-full pl-10 pr-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-3.5 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               />
             </div>
           </div>
@@ -128,15 +101,12 @@ const RiwayatVerifikasiPage = () => {
             <label className="block mb-1.5">Jenis Surat</label>
             <select
               value={serviceFilter}
-              onChange={(e) => updateQuery({ service: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              onChange={(e) => setServiceFilter(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium"
             >
-              <option>Semua Jenis</option>
-              <option>Surat Pengantar KTP</option>
-              <option>Domisili Usaha</option>
-              <option>Izin Keramaian</option>
-              <option>Keterangan Pindah</option>
-              <option>Surat Keterangan Kematian</option>
+              {uniqueServices.map(s => (
+                <option key={s}>{s}</option>
+              ))}
             </select>
           </div>
 
@@ -144,23 +114,13 @@ const RiwayatVerifikasiPage = () => {
             <label className="block mb-1.5">Status</label>
             <select
               value={statusFilter}
-              onChange={(e) => updateQuery({ status: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium"
             >
               <option>Semua Status</option>
               <option>Disetujui</option>
               <option>Ditolak</option>
             </select>
-          </div>
-
-          <div>
-            <label className="block mb-1.5">Rentang Tanggal</label>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => updateQuery({ date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            />
           </div>
         </div>
       </div>
@@ -168,106 +128,74 @@ const RiwayatVerifikasiPage = () => {
       {/* Main card */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
-                <th className="px-6 py-4">Nama Warga</th>
-                <th className="px-6 py-4">Jenis Surat</th>
-                <th className="px-6 py-4">Tanggal Selesai</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Detail</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
-              {filteredHistory.map((item, idx) => {
-                const badgeStyle =
-                  item.status === "Disetujui"
-                    ? "border-green-500 text-green-600"
-                    : "border-red-500 text-red-600";
-                return (
-                  <tr
-                    key={idx}
-                    className="hover:bg-gray-50/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 flex items-center gap-3">
-                      <div className="w-7 h-7 border border-gray-300 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
-                        {item.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">
-                          {item.name}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {item.block}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 font-semibold">
-                      {item.service}
-                    </td>
-                    <td className="px-6 py-4 text-gray-400">{item.date}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${badgeStyle}`}
-                      >
+          {loading ? (
+            <div className="text-center py-12 text-xs text-gray-400 font-medium">
+              Memuat riwayat verifikasi...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">Nama Warga</th>
+                  <th className="px-6 py-4">Jenis Surat</th>
+                  <th className="px-6 py-4">Tanggal Keputusan</th>
+                  <th className="px-6 py-4">Keputusan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
+                {filteredHistory.map((item, idx) => {
+                  const badgeStyle =
+                    item.status === "Disetujui"
+                      ? "border-green-500 text-green-600"
+                      : "border-red-500 text-red-650";
+                  return (
+                    <tr
+                      key={item.id || idx}
+                      className="hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 flex items-center gap-3">
+                        <div className="w-7 h-7 border border-gray-300 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
+                          {item.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-800">
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {item.block}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 font-semibold">
+                        {item.service}
+                      </td>
+                      <td className="px-6 py-4 text-gray-450">{item.date}</td>
+                      <td className="px-6 py-4">
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${item.status === "Disetujui" ? "bg-green-500" : "bg-red-500"}`}
-                        />
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-all">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${badgeStyle}`}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${item.status === "Disetujui" ? "bg-green-500" : "bg-red-500"}`}
                           />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                      </button>
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredHistory.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                      Tidak ada data riwayat keputusan yang cocok dengan filter.
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer pagination */}
-        <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-xs font-semibold text-gray-400">
-          <span>Menampilkan {filteredHistory.length} dari 128 permohonan</span>
-          <div className="flex gap-1">
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              &lt;
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center bg-slate-900 text-white rounded">
-              1
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              2
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              3
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              &gt;
-            </button>
-          </div>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

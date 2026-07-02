@@ -2,10 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import AuthSidePanel from "../components/AuthSidePanel";
+import { api } from "../../../utils/api.js";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [form, setForm] = useState({
     namaLengkap: "",
     nik: "",
@@ -19,9 +23,28 @@ const RegisterPage = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    navigate("/dashboard/login");
+    if (!form.namaLengkap || !form.nik || !form.email || !form.noWhatsapp || !form.password || !form.domisili) {
+      setErrorMsg("Harap lengkapi semua field formulir!");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      await api.post("/auth/register", form);
+      setSuccessMsg("Pendaftaran akun berhasil! Mengarahkan Anda ke halaman login...");
+      setTimeout(() => {
+        navigate("/dashboard/login");
+      }, 2000);
+    } catch (err) {
+      setErrorMsg(err.message || "Pendaftaran gagal. Pastikan NIK/Email/No. HP belum terdaftar.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const domisiliOptions = [
@@ -29,6 +52,8 @@ const RegisterPage = () => {
     "Denpasar Barat",
     "Denpasar Utara",
     "Denpasar Timur",
+    "Banjar Anyar",
+    "Banjar Tegal",
   ];
 
   return (
@@ -53,6 +78,19 @@ const RegisterPage = () => {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {errorMsg && (
+              <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                {errorMsg}
+              </div>
+            )}
+            {successMsg && (
+              <div className="p-3.5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0 animate-ping"></span>
+                {successMsg}
+              </div>
+            )}
+
             {/* Row 1: Nama Lengkap & NIK */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -296,10 +334,10 @@ const RegisterPage = () => {
             <button
               type="submit"
               id="btn-register"
-              disabled={!agreed}
+              disabled={!agreed || loading}
               className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm mt-1"
             >
-              Verifikasi Akun
+              {loading ? "Memproses..." : "Verifikasi Akun"}
               <svg
                 className="w-4 h-4"
                 fill="none"

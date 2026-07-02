@@ -1,53 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-
-const DUMMY_STAF = [
-  {
-    id: 1,
-    name: "Lurah Renon",
-    email: "lurah.renon@civiclink.id",
-    role: "Kelurahan",
-    area: "Kelurahan Renon",
-    status: "Aktif",
-  },
-  {
-    id: 2,
-    name: "Bpk. Herman",
-    email: "herman.kaling@civiclink.id",
-    role: "Kaling",
-    area: "Banjar Anyar Renon",
-    status: "Aktif",
-  },
-  {
-    id: 3,
-    name: "Lurah Sanur",
-    email: "lurah.sanur@civiclink.id",
-    role: "Kelurahan",
-    area: "Kelurahan Sanur",
-    status: "Aktif",
-  },
-  {
-    id: 4,
-    name: "Ibu Ratna",
-    email: "ratna.kaling@civiclink.id",
-    role: "Kaling",
-    area: "Banjar Tegal Sanur",
-    status: "Aktif",
-  },
-  {
-    id: 5,
-    name: "Bpk. Joko",
-    email: "joko.kaling@civiclink.id",
-    role: "Kaling",
-    area: "Banjar Kaja Renon",
-    status: "Nonaktif",
-  },
-];
+import { api } from "../../../utils/api.js";
 
 const ManajemenStafPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [stafList, setStafList] = useState(DUMMY_STAF);
+  const [stafList, setStafList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const searchQuery = searchParams.get("q") || "";
   const filterRole = searchParams.get("role") || "All";
   const isModalOpen = searchParams.get("modal") === "add";
@@ -61,6 +23,29 @@ const ManajemenStafPage = () => {
   const [formConfirmPassword, setFormConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
+  const fetchStaff = async () => {
+    try {
+      const response = await api.get("/admin/staff");
+      const mapped = (response.data.staff || []).map((s) => ({
+        id: s.id,
+        name: s.namaLengkap,
+        email: s.email,
+        role: s.role === "KALING" ? "Kaling" : "Kelurahan",
+        area: s.area,
+        status: s.isActive ? "Aktif" : "Nonaktif",
+      }));
+      setStafList(mapped);
+    } catch (err) {
+      console.error("Gagal mengambil data staf:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStaff();
+  }, []);
+
   const updateQuery = (updates) => {
     const next = new URLSearchParams(searchParams);
     Object.entries(updates).forEach(([key, value]) => {
@@ -73,7 +58,7 @@ const ManajemenStafPage = () => {
     navigate({ search: next.toString() }, { replace: true });
   };
 
-  const handleAddStaf = (e) => {
+  const handleAddStaf = async (e) => {
     e.preventDefault();
     if (!formName || !formEmail || !formArea || !formPassword) return;
 
@@ -82,58 +67,69 @@ const ManajemenStafPage = () => {
       return;
     }
 
-    const newStaf = {
-      id: Date.now(),
-      name: formName,
-      email: formEmail,
-      role: formRole,
-      area: formArea,
-      status: "Aktif",
-    };
+    setSubmitting(true);
+    setErrorMsg("");
 
-    setStafList([newStaf, ...stafList]);
-    updateQuery({ modal: "" });
+    try {
+      const mappedRole = formRole === "Kaling" ? "KALING" : "KELURAHAN";
+      await api.post("/admin/staff", {
+        namaLengkap: formName,
+        email: formEmail,
+        role: mappedRole,
+        area: formArea,
+        password: formPassword,
+      });
 
-    // Reset Form
-    setFormName("");
-    setFormEmail("");
-    setFormRole("Kelurahan");
-    setFormArea("");
-    setFormPassword("");
-    setFormConfirmPassword("");
-    setPasswordError("");
-  };
+      updateQuery({ modal: "" });
+      // Reset Form
+      setFormName("");
+      setFormEmail("");
+      setFormRole("Kelurahan");
+      setFormArea("");
+      setFormPassword("");
+      setFormConfirmPassword("");
+      setPasswordError("");
 
-  const toggleStatus = (id) => {
-    setStafList(
-      stafList.map((item) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            status: item.status === "Aktif" ? "Nonaktif" : "Aktif",
-          };
-        }
-        return item;
-      }),
-    );
-  };
-
-  const deleteStaf = (id) => {
-    if (confirm("Apakah Anda yakin ingin menghapus akun staf ini?")) {
-      setStafList(stafList.filter((item) => item.id !== id));
+      fetchStaff();
+    } catch (err) {
+      setErrorMsg(err.message || "Gagal membuat akun staf.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const filteredStaf = stafList.filter((staf) => {
-    const matchesSearch =
-      staf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staf.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staf.area.toLowerCase().includes(searchQuery.toLowerCase());
+  const toggleStatus = async (id) => {
+    try {
+      await api.patch(`/admin/staff/${id}/status`);
+      fetchStaff();
+    } catch (err) {
+      alert(err.message || "Gagal mengubah status staf.");
+    }
+  };
 
-    const matchesFilter = filterRole === "All" || staf.role === filterRole;
+  const deleteStaf = async (id) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus akun staf ini?")) {
+      try {
+        await api.delete(`/admin/staff/${id}`);
+        fetchStaff();
+      } catch (err) {
+        alert(err.message || "Gagal menghapus staf.");
+      }
+    }
+  };
 
-    return matchesSearch && matchesFilter;
-  });
+  const filteredStaf = useMemo(() => {
+    return stafList.filter((staf) => {
+      const matchesSearch =
+        staf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        staf.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        staf.area.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesFilter = filterRole === "All" || staf.role === filterRole;
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [stafList, searchQuery, filterRole]);
 
   return (
     <div className="w-full space-y-6 pb-12">
@@ -150,7 +146,7 @@ const ManajemenStafPage = () => {
         </div>
         <button
           onClick={() => updateQuery({ modal: "add" })}
-          className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs transition-all shadow-md"
+          className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
         >
           <svg
             className="w-4 h-4"
@@ -165,12 +161,13 @@ const ManajemenStafPage = () => {
               d="M12 4.5v15m7.5-7.5h-15"
             />
           </svg>
-          Tambah Staf Baru
+          Tambah Akun Staf
         </button>
       </div>
 
-      {/* Filter and Search Panel */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+      {/* Control row */}
+      <div className="flex gap-4 items-center">
+        {/* Search */}
         <div className="relative w-full md:w-96 shadow-sm rounded-lg">
           <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
             <svg
@@ -189,266 +186,289 @@ const ManajemenStafPage = () => {
           </span>
           <input
             type="text"
-            placeholder="Cari nama staf, email, atau wilayah tugas..."
+            placeholder="Cari nama, email, atau wilayah..."
             value={searchQuery}
             onChange={(e) => updateQuery({ q: e.target.value })}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg text-xs transition-all text-gray-800"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-350 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
           />
         </div>
 
-        <div className="flex gap-2 w-full md:w-auto justify-end">
-          <button
-            onClick={() => updateQuery({ role: "All" })}
-            className={`px-3 py-2 text-[10px] font-bold rounded-lg transition-all border ${
-              filterRole === "All"
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            Semua
-          </button>
-          <button
-            onClick={() => updateQuery({ role: "Kelurahan" })}
-            className={`px-3 py-2 text-[10px] font-bold rounded-lg transition-all border ${
-              filterRole === "Kelurahan"
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            Kelurahan
-          </button>
-          <button
-            onClick={() => updateQuery({ role: "Kaling" })}
-            className={`px-3 py-2 text-[10px] font-bold rounded-lg transition-all border ${
-              filterRole === "Kaling"
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            Kaling
-          </button>
-        </div>
+        {/* Dropdown Role */}
+        <select
+          value={filterRole}
+          onChange={(e) => updateQuery({ role: e.target.value })}
+          className="px-4 py-2.5 bg-white border border-gray-205 rounded-lg text-xs font-semibold text-gray-650 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        >
+          <option value="All">Semua Role</option>
+          <option value="Kelurahan">Kelurahan</option>
+          <option value="Kaling">Kaling</option>
+        </select>
       </div>
 
-      {/* Staff Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      {/* Main Table Card */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
-                <th className="px-6 py-4">Staf</th>
-                <th className="px-6 py-4">Peran (Role)</th>
-                <th className="px-6 py-4">Wilayah Penugasan</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
-              {filteredStaf.length > 0 ? (
-                filteredStaf.map((staf) => (
-                  <tr
-                    key={staf.id}
-                    className="hover:bg-gray-50/50 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900">{staf.name}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        {staf.email}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-wide ${
-                          staf.role === "Kelurahan"
-                            ? "border-purple-500 text-purple-700"
-                            : "border-amber-500 text-amber-700"
-                        }`}
-                      >
-                        {staf.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{staf.area}</td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => toggleStatus(staf.id)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide transition-all border ${
-                          staf.status === "Aktif"
-                            ? "border-emerald-500 text-emerald-700 hover:bg-emerald-50"
-                            : "border-red-500 text-red-700 hover:bg-red-50"
-                        }`}
-                      >
+          {loading ? (
+            <div className="text-center py-12 text-xs text-gray-400 font-medium">
+              Memuat data staf...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">Nama Staf</th>
+                  <th className="px-6 py-4">Email</th>
+                  <th className="px-6 py-4">Role</th>
+                  <th className="px-6 py-4">Wilayah Tugas</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
+                {filteredStaf.map((item) => {
+                  const badgeStyle =
+                    item.status === "Aktif"
+                      ? "border-emerald-500 text-emerald-600 bg-emerald-50/10"
+                      : "border-red-500 text-red-650 bg-red-50/10";
+                  return (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 flex items-center gap-3">
+                        <div className="w-7 h-7 border border-slate-300 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
+                          {item.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </div>
+                        <span className="font-semibold text-gray-800">
+                          {item.name}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-gray-500">
+                        {item.email}
+                      </td>
+                      <td className="px-6 py-4">
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${staf.status === "Aktif" ? "bg-emerald-500" : "bg-red-500"}`}
-                        />
-                        {staf.status}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button
-                        onClick={() => toggleStatus(staf.id)}
-                        className="text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-all"
-                      >
-                        Ubah Status
-                      </button>
-                      <span className="text-gray-300">|</span>
-                      <button
-                        onClick={() => deleteStaf(staf.id)}
-                        className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-all"
-                      >
-                        Hapus
-                      </button>
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            item.role === "Kelurahan"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {item.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-500">{item.area}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${badgeStyle}`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              item.status === "Aktif" ? "bg-green-500" : "bg-red-500"
+                            }`}
+                          />
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => toggleStatus(item.id)}
+                            className="px-2.5 py-1.5 border border-gray-200 rounded text-[9px] font-bold text-gray-600 hover:bg-gray-50"
+                          >
+                            {item.status === "Aktif" ? "Deaktifkan" : "Aktifkan"}
+                          </button>
+                          <button
+                            onClick={() => deleteStaf(item.id)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-all"
+                            aria-label="Hapus Akun"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredStaf.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                      Tidak ada akun staf yang cocok dengan pencarian.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="5"
-                    className="px-6 py-12 text-center text-gray-400 font-bold"
-                  >
-                    Tidak ada data staf ditemukan
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Add Staff Modal */}
+      {/* Modal Add Staf */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100 flex flex-col gap-4 relative animate-scaleIn">
+            <button
+              onClick={() => {
+                updateQuery({ modal: "" });
+                setErrorMsg("");
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            <div>
+              <h3 className="text-base font-bold text-gray-900">
                 Tambah Akun Staf Baru
               </h3>
-              <button
-                onClick={() => updateQuery({ modal: "" })}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
+              <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                Buat kredensial admin baru untuk kelurahan atau kepala lingkungan setempat.
+              </p>
             </div>
 
-            <form onSubmit={handleAddStaf} className="p-6 space-y-4">
+            <form onSubmit={handleAddStaf} className="space-y-3.5">
+              {errorMsg && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
+                  {errorMsg}
+                </div>
+              )}
+              {passwordError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
+                  {passwordError}
+                </div>
+              )}
+
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-gray-750 mb-1">
                   Nama Lengkap
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="Contoh: I Wayan Sudarta"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: I Made Herman"
+                  className="w-full px-3 py-2 border border-gray-255 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                  Email Staf
+                <label className="block text-[11px] font-bold text-gray-750 mb-1">
+                  Alamat Email (Username Login)
                 </label>
                 <input
                   type="email"
-                  required
-                  placeholder="Contoh: wayan.kaling@civiclink.id"
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="contoh.staf@sirat.go.id"
+                  className="w-full px-3 py-2 border border-gray-255 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Peran / Role
+                  <label className="block text-[11px] font-bold text-gray-750 mb-1">
+                    Role Jabatan
                   </label>
                   <select
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-gray-700"
+                    className="w-full px-3 py-2 border border-gray-255 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                   >
-                    <option value="Kelurahan">Kelurahan</option>
-                    <option value="Kaling">Kaling</option>
+                    <option>Kelurahan</option>
+                    <option>Kaling</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Wilayah Tugas
+                  <label className="block text-[11px] font-bold text-gray-750 mb-1">
+                    Wilayah / Banjar Tugas
                   </label>
                   <input
                     type="text"
-                    required
-                    placeholder={
-                      formRole === "Kelurahan"
-                        ? "Kel. Renon"
-                        : "Banjar Anyar Renon"
-                    }
                     value={formArea}
                     onChange={(e) => setFormArea(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Contoh: Banjar Tegal"
+                    className="w-full px-3 py-2 border border-gray-255 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Kata Sandi
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={formPassword}
-                    onChange={(e) => {
-                      setFormPassword(e.target.value);
-                      setPasswordError("");
-                    }}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Ulangi Kata Sandi
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={formConfirmPassword}
-                    onChange={(e) => {
-                      setFormConfirmPassword(e.target.value);
-                      setPasswordError("");
-                    }}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-750 mb-1">
+                  Password Baru
+                </label>
+                <input
+                  type="password"
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full px-3 py-2 border border-gray-255 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
+                />
               </div>
 
-              {passwordError && (
-                <p className="text-[10px] text-red-600 font-bold mt-1">
-                  ⚠ {passwordError}
-                </p>
-              )}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-750 mb-1">
+                  Ulangi Password Baru
+                </label>
+                <input
+                  type="password"
+                  value={formConfirmPassword}
+                  onChange={(e) => setFormConfirmPassword(e.target.value)}
+                  placeholder="Masukkan kembali password"
+                  className="w-full px-3 py-2 border border-gray-255 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
+                />
+              </div>
 
-              <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => updateQuery({ modal: "" })}
-                  className="px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-500"
+                  onClick={() => {
+                    updateQuery({ modal: "" });
+                    setErrorMsg("");
+                  }}
+                  disabled={submitting}
+                  className="flex-1 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold transition-all shadow-md"
+                  disabled={submitting}
+                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-350 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
                 >
-                  Simpan Akun
+                  {submitting ? "Membuat..." : "Simpan Kredensial"}
                 </button>
               </div>
             </form>

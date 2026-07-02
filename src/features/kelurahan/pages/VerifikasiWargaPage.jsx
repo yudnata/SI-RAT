@@ -1,63 +1,40 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-
-const DUMMY_CITIZEN_QUEUE = [
-  {
-    name: "Budi Santoso",
-    gender: "Laki-laki",
-    age: 32,
-    nik: "3275012345678901",
-    rt: "Banjar Anyar",
-    date: "12 Okt 2023, 09:15",
-    status: "Disetujui",
-  },
-  {
-    name: "Siti Maemunah",
-    gender: "Perempuan",
-    age: 28,
-    nik: "3271044410950001",
-    rt: "Banjar Tegal",
-    date: "11 Okt 2023, 14:40",
-    status: "Menunggu",
-  },
-  {
-    name: "Andi Herlambang",
-    gender: "Laki-laki",
-    age: 45,
-    nik: "3271046501780002",
-    rt: "Banjar Kaja",
-    date: "11 Okt 2023, 10:22",
-    status: "Menunggu",
-  },
-  {
-    name: "Dewi Wahyuni",
-    gender: "Perempuan",
-    age: 22,
-    nik: "3271046108910005",
-    rt: "Banjar Kelod",
-    date: "10 Okt 2023, 16:55",
-    status: "Menunggu",
-  },
-  {
-    name: "Rizky Junaedi",
-    gender: "Laki-laki",
-    age: 38,
-    nik: "3271041903840004",
-    rt: "Banjar Anyar",
-    date: "10 Okt 2023, 11:30",
-    status: "Menunggu",
-  },
-];
+import { api } from "../../../utils/api.js";
 
 const VerifikasiWargaPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [list, setList] = useState(DUMMY_CITIZEN_QUEUE);
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+
   const selectedItemId = searchParams.get("item");
-  const selectedIndex = list.findIndex(
-    (item) => String(item.id ?? item.nik) === String(selectedItemId),
-  );
-  const selectedWarga = selectedIndex >= 0 ? list[selectedIndex] : null;
+
+  const fetchQueue = async () => {
+    try {
+      const response = await api.get("/kelurahan/warga");
+      const mapped = (response.data.warga || []).map((w) => ({
+        id: w.id,
+        name: w.namaLengkap,
+        gender: w.jenisKelamin || "Laki-laki",
+        age: 28, // Default visual fallback
+        nik: w.nik,
+        rt: w.domisili || "Banjar Tegal",
+        date: new Date(w.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
+        status: w.isVerified ? "Disetujui" : "Menunggu",
+      }));
+      setList(mapped);
+    } catch (err) {
+      console.error("Gagal mengambil antrean verifikasi warga:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQueue();
+  }, []);
 
   const updateQuery = (updates) => {
     const next = new URLSearchParams(searchParams);
@@ -71,29 +48,60 @@ const VerifikasiWargaPage = () => {
     navigate({ search: next.toString() }, { replace: true });
   };
 
-  const handleApprove = () => {
-    if (selectedIndex === -1) return;
-    const updated = [...list];
-    updated[selectedIndex].status = "Disetujui";
-    setList(updated);
-    updateQuery({ item: "" });
+  const handleApprove = async (wargaId) => {
+    try {
+      await api.patch(`/kelurahan/warga/${wargaId}/verify`, { isVerified: true });
+      setToast("Akun warga berhasil diverifikasi dan diaktifkan!");
+      setTimeout(() => setToast(null), 4000);
+      updateQuery({ item: "" });
+      fetchQueue();
+    } catch (err) {
+      alert(err.message || "Gagal memverifikasi akun.");
+    }
   };
 
-  const handleReject = () => {
-    if (selectedIndex === -1) return;
-    const updated = [...list];
-    updated[selectedIndex].status = "Ditolak";
-    setList(updated);
-    updateQuery({ item: "" });
+  const handleReject = async (wargaId) => {
+    try {
+      await api.patch(`/kelurahan/warga/${wargaId}/verify`, { isVerified: false });
+      setToast("Akun warga ditolak.");
+      setTimeout(() => setToast(null), 4000);
+      updateQuery({ item: "" });
+      fetchQueue();
+    } catch (err) {
+      alert(err.message || "Gagal menolak akun.");
+    }
   };
+
+  const selectedWarga = useMemo(() => {
+    return list.find((item) => String(item.id) === String(selectedItemId)) || null;
+  }, [list, selectedItemId]);
+
+  const stats = useMemo(() => {
+    const waiting = list.filter(w => w.status === "Menunggu").length;
+    const verified = list.filter(w => w.status === "Disetujui").length;
+    return { waiting, verified, total: list.length };
+  }, [list]);
 
   return (
     <div className="w-full space-y-6 pb-12">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <p className="text-xs font-bold">{toast}</p>
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h1 className="text-xl font-extrabold text-gray-900">
           Verifikasi Akun Warga
         </h1>
+        <p className="text-xs text-gray-400 mt-0.5 font-medium">
+          Daftar seluruh akun warga yang mendaftar dan membutuhkan verifikasi profil NIK agar bisa mengajukan surat.
+        </p>
       </div>
 
       {/* Stat Cards */}
@@ -102,24 +110,22 @@ const VerifikasiWargaPage = () => {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Menunggu Verifikasi
           </p>
-          <p className="text-2xl font-extrabold text-gray-900">24</p>
-          <p className="text-[10px] text-gray-400">+5 hari ini</p>
+          <p className="text-2xl font-extrabold text-gray-900">{stats.waiting}</p>
+          <p className="text-[10px] text-gray-400">Butuh keputusan segera</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-1">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-            Diverifikasi (Bulan Ini)
+            Diverifikasi
           </p>
-          <p className="text-2xl font-extrabold text-gray-900">142</p>
-          <p className="text-[10px] text-blue-500 font-bold">
-            12% dari bulan lalu
-          </p>
+          <p className="text-2xl font-extrabold text-gray-900">{stats.verified}</p>
+          <p className="text-[10px] text-green-500 font-bold">✓ Akun Aktif</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-1">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Total Warga Terdaftar
           </p>
-          <p className="text-2xl font-extrabold text-gray-900">8,432</p>
-          <p className="text-[10px] text-gray-400">Data tervalidasi 88%</p>
+          <p className="text-2xl font-extrabold text-gray-900">{stats.total}</p>
+          <p className="text-[10px] text-gray-400">Terdaftar di SI-RAT</p>
         </div>
       </div>
 
@@ -129,143 +135,93 @@ const VerifikasiWargaPage = () => {
           <h2 className="text-sm font-bold text-gray-800">
             Daftar Antrean Verifikasi
           </h2>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-gray-400">Urutkan:</span>
-            <select className="px-2.5 py-1 border border-gray-200 rounded text-xs font-bold text-gray-600 focus:outline-none bg-white">
-              <option>Terbaru</option>
-            </select>
-          </div>
         </div>
 
         {/* Table representation */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
-                <th className="px-6 py-4">Nama</th>
-                <th className="px-6 py-4">NIK</th>
-                <th className="px-6 py-4">Banjar / Lingkungan</th>
-                <th className="px-6 py-4">Tanggal Daftar</th>
-                <th className="px-6 py-4">Status Verifikasi</th>
-                <th className="px-6 py-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
-              {list.map((item, idx) => {
-                const badgeStyle =
-                  item.status === "Disetujui"
-                    ? "border-green-500 text-green-600"
-                    : item.status === "Ditolak"
-                      ? "border-red-500 text-red-600"
-                      : "border-gray-300 text-gray-500";
-                return (
-                  <tr
-                    key={idx}
-                    className="hover:bg-gray-50/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 flex items-center gap-3">
-                      <div className="w-7 h-7 border border-gray-300 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
-                        {item.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">
-                          {item.name}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {item.gender}, {item.age} Thn
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-mono text-gray-500">
-                      {item.nik}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500">{item.rt}</td>
-                    <td className="px-6 py-4 text-gray-400">{item.date}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${badgeStyle}`}
-                      >
+          {loading ? (
+            <div className="text-center py-12 text-xs text-gray-400 font-medium">
+              Memuat data antrean verifikasi warga...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">Nama Warga</th>
+                  <th className="px-6 py-4">NIK</th>
+                  <th className="px-6 py-4">Banjar / Lingkungan</th>
+                  <th className="px-6 py-4">Tanggal Daftar</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
+                {list.map((item, idx) => {
+                  const badgeStyle =
+                    item.status === "Disetujui"
+                      ? "border-green-500 text-green-600 bg-green-50/10"
+                      : "border-amber-500 text-amber-600 bg-amber-50/10";
+                  return (
+                    <tr
+                      key={item.id || idx}
+                      className="hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 flex items-center gap-3">
+                        <div className="w-7 h-7 border border-gray-300 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
+                          {item.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-800">
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {item.gender}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-gray-500">
+                        {item.nik}
+                      </td>
+                      <td className="px-6 py-4 text-gray-500">{item.rt}</td>
+                      <td className="px-6 py-4 text-gray-400">{item.date}</td>
+                      <td className="px-6 py-4">
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            item.status === "Disetujui"
-                              ? "bg-green-500"
-                              : item.status === "Ditolak"
-                                ? "bg-red-500"
-                                : "bg-gray-400"
-                          }`}
-                        />
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {item.status === "Menunggu" ? (
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${badgeStyle}`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              item.status === "Disetujui" ? "bg-green-500" : "bg-amber-500"
+                            }`}
+                          />
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => {
-                            updateQuery({ item: item.id ?? item.nik });
+                            updateQuery({ item: item.id });
                           }}
                           className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold transition-all"
                         >
-                          Verifikasi
+                          {item.status === "Menunggu" ? "Verifikasi" : "Lihat Detail"}
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            updateQuery({ item: item.id ?? item.nik });
-                          }}
-                          className="p-1 text-gray-400 hover:text-gray-650 rounded transition-all"
-                          aria-label="Lihat Detail"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                          </svg>
-                        </button>
-                      )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {list.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                      Tidak ada akun warga yang mendaftar saat ini.
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer pagination */}
-        <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-xs font-semibold text-gray-400">
-          <span>Menampilkan 1-5 dari 24 warga</span>
-          <div className="flex gap-1">
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              &lt;
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center bg-slate-900 text-white rounded">
-              1
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              2
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              3
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              &gt;
-            </button>
-          </div>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -273,25 +229,14 @@ const VerifikasiWargaPage = () => {
       {selectedWarga && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all animate-fadeIn">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-gray-100 flex flex-col gap-4 relative animate-scaleIn">
-            {/* Close button */}
-              <button
+            <button
               onClick={() => {
                 updateQuery({ item: "" });
               }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
 
@@ -300,8 +245,7 @@ const VerifikasiWargaPage = () => {
                 Review Verifikasi Akun
               </h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                Periksa keabsahan data NIK dan berkas identitas pemohon sebelum
-                memberikan persetujuan akun.
+                Periksa keabsahan data NIK dan berkas identitas pemohon sebelum memberikan persetujuan akun.
               </p>
             </div>
 
@@ -319,8 +263,7 @@ const VerifikasiWargaPage = () => {
                     {selectedWarga.name}
                   </h4>
                   <p className="text-[10px] text-gray-400">
-                    {selectedWarga.gender}, {selectedWarga.age} Tahun —
-                    Terdaftar pada {selectedWarga.date}
+                    {selectedWarga.gender} — Terdaftar pada {selectedWarga.date}
                   </p>
                 </div>
               </div>
@@ -345,78 +288,8 @@ const VerifikasiWargaPage = () => {
                 <div className="col-span-2">
                   <span className="text-gray-400 block">Alamat KTP</span>
                   <span className="text-gray-700 font-medium">
-                    Banjar {selectedWarga.rt}, Kelurahan Panjer, Denpasar
-                    Selatan, Bali
+                    Banjar {selectedWarga.rt}, Kelurahan Panjer, Denpasar Selatan, Bali
                   </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Verification Files */}
-            <div className="border border-gray-200 rounded-xl p-4 bg-transparent">
-              <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                  />
-                </svg>
-                Lampiran Berkas Pendaftaran
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="border border-gray-200 rounded-lg p-2.5 flex items-center gap-2 bg-transparent hover:bg-gray-50 transition-colors cursor-pointer">
-                  <svg
-                    className="w-5 h-5 text-blue-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-                    />
-                  </svg>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-gray-700 block truncate">
-                      KTP_{selectedWarga.name.replace(/\s+/g, "")}.jpg
-                    </span>
-                    <span className="text-[9px] text-gray-400">
-                      Foto KTP (1.2 MB)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border border-gray-200 rounded-lg p-2.5 flex items-center gap-2 bg-transparent hover:bg-gray-50 transition-colors cursor-pointer">
-                  <svg
-                    className="w-5 h-5 text-blue-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                    />
-                  </svg>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-gray-700 block truncate">
-                      KK_{selectedWarga.name.replace(/\s+/g, "")}.pdf
-                    </span>
-                    <span className="text-[9px] text-gray-400">
-                      Scan Kartu Keluarga (2.4 MB)
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -424,13 +297,13 @@ const VerifikasiWargaPage = () => {
             {selectedWarga.status === "Menunggu" ? (
               <div className="flex gap-2.5 pt-2">
                 <button
-                  onClick={handleReject}
-                  className="flex-1 py-2 border border-red-200 hover:bg-red-50 text-red-600 rounded-lg text-xs font-bold transition-colors"
+                  onClick={() => handleReject(selectedWarga.id)}
+                  className="flex-1 py-2 border border-red-200 hover:bg-red-50 text-red-650 rounded-lg text-xs font-bold transition-colors"
                 >
                   Tolak Pendaftaran
                 </button>
                 <button
-                  onClick={handleApprove}
+                  onClick={() => handleApprove(selectedWarga.id)}
                   className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
                 >
                   Setujui & Aktifkan Akun
@@ -439,13 +312,9 @@ const VerifikasiWargaPage = () => {
             ) : (
               <div className="pt-2 text-center">
                 <span
-                  className={`inline-flex px-4 py-2 border text-xs font-bold rounded-lg ${
-                    selectedWarga.status === "Disetujui"
-                      ? "border-green-300 text-green-700"
-                      : "border-red-300 text-red-700"
-                  }`}
+                  className="inline-flex px-4 py-2 border border-green-300 text-green-700 text-xs font-bold rounded-lg"
                 >
-                  Status Akun: {selectedWarga.status}
+                  Status Akun: Diverifikasi & Aktif
                 </span>
               </div>
             )}

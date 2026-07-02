@@ -1,5 +1,6 @@
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "../../../utils/api.js";
 import {
   SERVICES,
   FLOW_STEP_LABELS,
@@ -8,117 +9,48 @@ import {
 import SuratPengantarTemplate from "../components/SuratPengantarTemplate";
 import DocumentPreviewModal from "../../../components/DocumentPreviewModal";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Data permohonan yang SEDANG MENUNGGU verifikasi Kaling.
-// Surat yang di-approve dan needsKelurahan=true → diteruskan ke Kelurahan.
-// CATATAN: SKCK tidak masuk sistem ini per 2025.
-// ─────────────────────────────────────────────────────────────────────────────
-const DUMMY_PENDING = [
-  {
-    id: 1,
-    name: "Andi Wijaya",
-    nik: "5171012504950003",
-    block: "Banjar Tegal / No. 12",
-    serviceId: "sku",
-    date: "24 Okt 2026, 09:15",
-    ttl: "Denpasar, 25 April 1995",
-    jenisKelamin: "Laki-laki",
-    agama: "Hindu",
-    pekerjaan: "Wiraswasta",
-    alamat: "Jl. Tukad Badung No. 12, Banjar Tegal, Kel. Panjer, Denpasar",
-    keperluan: "Pengurusan izin usaha warung makan untuk pengajuan KUR BRI",
-    docs: [
-      "KTP_AndiWijaya.jpg",
-      "KK_AndiWijaya.pdf",
-      "SuratPernyataanUsaha_AndiWijaya.pdf",
-    ],
-  },
-  {
-    id: 2,
-    name: "Siti Halimah",
-    nik: "5171014306920005",
-    block: "Banjar Anyar / No. 04",
-    serviceId: "domisili",
-    date: "24 Okt 2026, 10:40",
-    ttl: "Surabaya, 3 Juni 1992",
-    jenisKelamin: "Perempuan",
-    agama: "Islam",
-    pekerjaan: "Ibu Rumah Tangga",
-    alamat:
-      "Jl. Pulau Saelus Gg. II No. 4, Banjar Anyar, Kel. Panjer, Denpasar",
-    keperluan: "Pendaftaran sekolah anak ke SD Negeri setempat",
-    docs: ["KTP_SitiHalimah.jpg", "KK_SitiHalimah.pdf"],
-  },
-  {
-    id: 3,
-    name: "Budi Pratama",
-    nik: "5171011208880001",
-    block: "Banjar Tegal / No. 15",
-    serviceId: "belum_menikah",
-    date: "23 Okt 2026, 16:20",
-    ttl: "Denpasar, 12 Agustus 1988",
-    jenisKelamin: "Laki-laki",
-    agama: "Hindu",
-    pekerjaan: "PNS",
-    alamat: "Jl. Kamboja No. 15, Banjar Tegal, Kel. Panjer, Denpasar",
-    keperluan: "Persyaratan melamar pekerjaan BUMN",
-    docs: [
-      "KTP_BudiPratama.jpg",
-      "KK_BudiPratama.pdf",
-      "SuratPernyataanBelumMenikah_Materai.pdf",
-    ],
-  },
-  {
-    id: 4,
-    name: "Made Suarsana",
-    nik: "5171010202870009",
-    block: "Banjar Tegal / No. 07",
-    serviceId: "sktm",
-    date: "23 Okt 2026, 14:05",
-    ttl: "Gianyar, 2 Februari 1987",
-    jenisKelamin: "Laki-laki",
-    agama: "Hindu",
-    pekerjaan: "Buruh Harian",
-    alamat: "Jl. Pulau Galang No. 7, Banjar Tegal, Kel. Panjer, Denpasar",
-    keperluan: "Pengajuan beasiswa pendidikan anak ke SMA Negeri",
-    docs: [
-      "KTP_MadeSuarsana.jpg",
-      "KK_MadeSuarsana.pdf",
-      "SuratPernyataanKurangMampu_Materai.pdf",
-    ],
-  },
-  {
-    id: 5,
-    name: "Wayan Sudirga",
-    nik: "5171010107870002",
-    block: "Banjar Tegal / No. 22",
-    serviceId: "izin_keramaian",
-    date: "22 Okt 2026, 11:30",
-    ttl: "Denpasar, 1 Juli 1987",
-    jenisKelamin: "Laki-laki",
-    agama: "Hindu",
-    pekerjaan: "Pemangku Adat",
-    alamat: "Jl. Kamboja No. 22, Banjar Tegal, Kel. Panjer, Denpasar",
-    keperluan: "Upacara Ngaben keluarga besar, estimasi 300 tamu",
-    docs: ["KTP_WayanSudirga.jpg", "SusunanAcara_Ngaben.pdf"],
-  },
-];
-
-// ─── Detail Modal Component ─────────────────────────────────────────────────────
 const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
   const [signedFile, setSignedFile] = useState(null);
   const [showUploadError, setShowUploadError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [previewDoc, setPreviewDoc] = useState(null);
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!signedFile) {
       setShowUploadError(true);
       return;
     }
-    onApprove(item, service.needsKelurahan);
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await onApprove(item, signedFile);
+      onClose();
+    } catch (err) {
+      setSubmitError(err.message || "Gagal menyetujui permohonan.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason) {
+      alert("Harap isi alasan penolakan!");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await onReject(item, rejectReason);
+      onClose();
+    } catch (err) {
+      setSubmitError(err.message || "Gagal menolak permohonan.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (showTemplate) {
@@ -179,6 +111,12 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 px-7 py-5 space-y-5">
+          {submitError && (
+            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
+              {submitError}
+            </div>
+          )}
+
           {/* Service info */}
           <div className="flex items-center gap-3 border border-blue-200 rounded-xl p-4 bg-transparent">
             <div className="text-blue-600 flex-shrink-0">
@@ -248,6 +186,32 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
             </div>
           </div>
 
+          {/* Dynamic specific fields */}
+          {item.formData && Object.keys(item.formData).filter(k => !["tempatLahir", "tanggalLahir", "jenisKelamin", "agama", "pekerjaan", "alamat"].includes(k)).length > 0 && (
+            <div className="border border-gray-200 rounded-xl p-5">
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                </svg>
+                Detail Formulir Layanan
+              </h4>
+              <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+                {Object.entries(item.formData)
+                  .filter(([key]) => !["tempatLahir", "tanggalLahir", "jenisKelamin", "agama", "pekerjaan", "alamat"].includes(key))
+                  .map(([key, value]) => {
+                    const matchedField = service.specificFields?.find(f => f.name === key);
+                    const label = matchedField ? matchedField.label : key.replace(/([A-Z])/g, " $1");
+                    return (
+                      <div key={key}>
+                        <p className="text-xs text-gray-400 capitalize">{label}</p>
+                        <p className="font-semibold text-gray-850">{value || "—"}</p>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {/* Dokumen Terlampir */}
           <div className="border border-gray-200 rounded-xl p-5">
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
@@ -270,18 +234,18 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
               </span>
             </h4>
             <div className="space-y-2">
-              {(item.docs || []).map((doc) => {
+              {item.rawDocuments && item.rawDocuments.map((doc) => {
                 const isImg =
-                  doc.toLowerCase().endsWith(".jpg") ||
-                  doc.toLowerCase().endsWith(".jpeg") ||
-                  doc.toLowerCase().endsWith(".png");
+                  doc.fileUrl.toLowerCase().endsWith(".jpg") ||
+                  doc.fileUrl.toLowerCase().endsWith(".jpeg") ||
+                  doc.fileUrl.toLowerCase().endsWith(".png") ||
+                  doc.fileUrl.includes("image/upload");
                 return (
                   <div
-                    key={doc}
+                    key={doc.id}
                     className="border border-gray-200 rounded-xl px-3 py-2.5 flex items-center gap-3 hover:border-blue-300 hover:bg-blue-50/30 transition-all group cursor-pointer"
-                    onClick={() => setPreviewDoc(doc)}
+                    onClick={() => setPreviewDoc(doc.fileUrl)}
                   >
-                    {/* File type badge */}
                     <div
                       className={`w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ${
                         isImg ? "bg-violet-500" : "bg-red-500"
@@ -290,31 +254,17 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
                       {isImg ? "IMG" : "PDF"}
                     </div>
                     <span className="text-xs font-medium text-gray-700 flex-1 truncate">
-                      {doc}
+                      {doc.documentLabel}
                     </span>
-                    {/* Action buttons */}
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPreviewDoc(doc);
+                          setPreviewDoc(doc.fileUrl);
                         }}
                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 text-[9px] font-bold transition-colors"
                       >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
                         Preview
-                      </button>
-                      <button
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-[9px] font-bold transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        Unduh
                       </button>
                     </div>
                   </div>
@@ -453,8 +403,10 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
                 <input
                   type="file"
                   onChange={(e) => {
-                    setSignedFile(e.target.files[0]);
-                    setShowUploadError(false);
+                    if (e.target.files[0]) {
+                      setSignedFile(e.target.files[0]);
+                      setShowUploadError(false);
+                    }
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer"
                 />
@@ -508,19 +460,20 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
               />
               <div className="flex gap-2 mt-3">
                 <button
+                  type="button"
                   onClick={() => setShowRejectForm(false)}
-                  className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-white transition-colors"
+                  disabled={submitting}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-white transition-colors disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
-                  onClick={() => {
-                    onReject(item);
-                    onClose();
-                  }}
-                  className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                  type="button"
+                  onClick={handleReject}
+                  disabled={submitting}
+                  className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:bg-red-300"
                 >
-                  Konfirmasi Tolak
+                  {submitting ? "Memproses..." : "Konfirmasi Tolak"}
                 </button>
               </div>
             </div>
@@ -532,39 +485,24 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
           <div className="px-7 py-4 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
             <button
               onClick={() => setShowTemplate(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              disabled={submitting}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
               Preview Surat
             </button>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowRejectForm(true)}
-                className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-600 transition-all"
+                disabled={submitting}
+                className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold text-gray-600 transition-all disabled:opacity-50"
               >
                 Tolak
               </button>
               <button
                 onClick={handleApprove}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                disabled={submitting}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 disabled:bg-slate-400"
               >
                 <svg
                   className="w-3.5 h-3.5"
@@ -579,9 +517,7 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
                     d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                {service.needsKelurahan
-                  ? "Setujui & Teruskan ke Kelurahan"
-                  : "Setujui & Terbitkan Surat"}
+                {submitting ? "Memproses..." : (service.needsKelurahan ? "Setujui & Teruskan" : "Setujui & Terbitkan")}
               </button>
             </div>
           </div>
@@ -591,17 +527,46 @@ const DetailModal = ({ item, service, onClose, onApprove, onReject }) => {
   );
 };
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────
-const PerluVerifikasiPage = ({ list, setList }) => {
+const PerluVerifikasiPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [localList, setLocalList] = useState(DUMMY_PENDING);
-  const activeList = list !== undefined ? list : localList;
-  const activeSetList = setList !== undefined ? setList : setLocalList;
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+
   const selectedItemId = searchParams.get("item");
-  const selectedItem =
-    activeList.find((item) => String(item.id) === String(selectedItemId)) || null;
+
+  const fetchList = async () => {
+    try {
+      const response = await api.get("/submissions/kaling/pending");
+      const mapped = (response.data.submissions || []).map((item) => ({
+        id: item.id,
+        name: item.user.namaLengkap,
+        nik: item.user.nik,
+        block: item.user.domisili || "Banjar Tegal",
+        serviceId: item.service.slug,
+        date: new Date(item.createdAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }),
+        ttl: `${item.user.tempatLahir || "Denpasar"}, ${item.user.tanggalLahir || "1 Januari 1990"}`,
+        jenisKelamin: item.user.jenisKelamin || "Laki-laki",
+        agama: item.user.agama || "Hindu",
+        pekerjaan: item.user.pekerjaan || "Wiraswasta",
+        alamat: item.user.alamat || "Alamat KTP",
+        keperluan: item.formData.keperluan || "—",
+        rawDocuments: item.documents,
+        formData: item.formData,
+        service: item.service,
+      }));
+      setList(mapped);
+    } catch (err) {
+      console.error("Gagal mengambil data verifikasi:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchList();
+  }, []);
 
   const updateQuery = (updates) => {
     const next = new URLSearchParams(searchParams);
@@ -623,28 +588,40 @@ const PerluVerifikasiPage = ({ list, setList }) => {
       needsKelurahan: true,
     };
 
-  const handleApprove = (item, forwarded) => {
-    activeSetList((prev) => prev.filter((p) => p.id !== item.id));
-    updateQuery({ item: "" });
-    const msg = forwarded
+  const handleApprove = async (item, signedFile) => {
+    const payload = new FormData();
+    payload.append("file", signedFile);
+    payload.append("note", "Disetujui oleh Kepala Lingkungan setempat");
+
+    await api.post(`/submissions/${item.id}/kaling/approve`, payload, true);
+    
+    // Notify toast
+    const service = getService(item.serviceId);
+    const msg = service.needsKelurahan
       ? `Permohonan ${item.name} disetujui & diteruskan ke Kelurahan`
       : `Surat Pengantar untuk ${item.name} berhasil diterbitkan`;
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
+
+    fetchList();
   };
 
-  const handleReject = (item) => {
-    activeSetList((prev) => prev.filter((p) => p.id !== item.id));
-    updateQuery({ item: "" });
+  const handleReject = async (item, reason) => {
+    await api.post(`/submissions/${item.id}/kaling/reject`, { reason });
+    
     setToast(`Permohonan ${item.name} telah ditolak`);
     setTimeout(() => setToast(null), 4000);
+
+    fetchList();
   };
+
+  const selectedItem = list.find((item) => String(item.id) === String(selectedItemId)) || null;
 
   return (
     <div className="w-full space-y-6 pb-12">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-bounce">
+        <div className="fixed top-5 right-5 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3">
           <svg
             className="w-5 h-5"
             fill="none"
@@ -677,118 +654,100 @@ const PerluVerifikasiPage = ({ list, setList }) => {
       <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-gray-50 pb-4">
           <h2 className="text-sm font-bold text-gray-800">Daftar Permohonan</h2>
-          <div className="flex gap-2">
-            <button className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-lg text-[10px] font-bold text-gray-600 transition-colors">
-              Filter
-            </button>
-            <button className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-lg text-[10px] font-bold text-gray-600 transition-colors">
-              Urutkan
-            </button>
-          </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
-                <th className="px-6 py-4">Warga</th>
-                <th className="px-6 py-4">Jenis Surat</th>
-                <th className="px-6 py-4">Tanggal Masuk</th>
-                <th className="px-6 py-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
-              {activeList.map((item) => {
-                const service = getService(item.serviceId);
-                return (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-gray-50/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 flex items-center gap-3">
-                      <div className="w-7 h-7 border border-blue-500 rounded-full flex items-center justify-center text-[10px] font-bold text-blue-600">
-                        {item.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">
-                          {item.name}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {item.block}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-0.5 rounded border border-gray-300 text-[9px] font-bold text-gray-500 uppercase tracking-wide">
-                        {service.name
-                          .replace("Surat ", "")
-                          .replace("(", "")
-                          .replace(")", "")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-gray-700">{item.date}</p>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => updateQuery({ item: item.id })}
-                        className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold transition-all"
+          {loading ? (
+            <div className="text-center py-12 text-xs text-gray-400 font-medium">
+              Memuat data verifikasi warga...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">Warga</th>
+                  <th className="px-6 py-4">Jenis Surat</th>
+                  <th className="px-6 py-4">Tanggal Masuk</th>
+                  <th className="px-6 py-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
+                {list.map((item) => {
+                  const service = getService(item.serviceId);
+                  return (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-gray-50/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 flex items-center gap-3">
+                        <div className="w-7 h-7 border border-blue-500 rounded-full flex items-center justify-center text-[10px] font-bold text-blue-600">
+                          {item.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-800">
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {item.block}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-0.5 rounded border border-gray-300 text-[9px] font-bold text-gray-500 uppercase tracking-wide">
+                          {service.name
+                            .replace("Surat ", "")
+                            .replace("(", "")
+                            .replace(")", "")}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-gray-700">{item.date}</p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => updateQuery({ item: item.id })}
+                          className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold transition-all"
+                        >
+                          Verifikasi
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {list.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-6 py-12 text-center text-gray-400"
+                    >
+                      <svg
+                        className="w-10 h-10 mx-auto mb-2 text-gray-300"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
                       >
-                        Verifikasi
-                      </button>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <p className="text-sm font-bold text-gray-500">
+                        Semua Permohonan Selesai
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Tidak ada permohonan yang perlu diverifikasi saat ini.
+                      </p>
                     </td>
                   </tr>
-                );
-              })}
-              {activeList.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-6 py-12 text-center text-gray-400"
-                  >
-                    <svg
-                      className="w-10 h-10 mx-auto mb-2 text-gray-300"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <p className="text-sm font-bold text-gray-500">
-                      Semua Permohonan Selesai
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Tidak ada permohonan yang perlu diverifikasi saat ini.
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer pagination */}
-        <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-xs font-semibold text-gray-400">
-          <span>Menampilkan {activeList.length} permohonan</span>
-          <div className="flex gap-1">
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              &lt;
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center bg-slate-900 text-white rounded">
-              1
-            </button>
-            <button className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded hover:bg-gray-50 text-gray-500">
-              &gt;
-            </button>
-          </div>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

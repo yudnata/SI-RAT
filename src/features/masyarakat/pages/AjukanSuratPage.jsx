@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ServiceCard from "../components/ServiceCard";
 import SubmissionModal from "../components/SubmissionModal";
-import { SERVICES, getServiceIcon } from "../../../data/serviceData.jsx";
+import { getServiceIcon } from "../../../data/serviceData.jsx";
+import { api } from "../../../utils/api.js";
 
 const AjukanSuratPage = ({ user }) => {
+  const [servicesList, setServicesList] = useState([]);
   const [showToast, setShowToast] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -13,33 +16,45 @@ const AjukanSuratPage = ({ user }) => {
   const searchTerm = searchParams.get("q") || "";
   const selectedServiceId = searchParams.get("service");
 
-  // Enrich SERVICES with their icon components for rendering
-  const enrichedServices = useMemo(
-    () =>
-      SERVICES.map((s) => ({
-        ...s,
-        icon: getServiceIcon(s.id),
-      })),
-    [],
-  );
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await api.get("/services");
+        const list = (response.data.services || []).map((s) => ({
+          ...s,
+          id: s.slug, // mapping slug to id for components
+          dbId: s.id, // storing database UUID
+          icon: getServiceIcon(s.slug),
+        }));
+        setServicesList(list);
+      } catch (err) {
+        console.error("Gagal mengambil daftar layanan:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchServices();
+  }, []);
 
   const selectedService = useMemo(
     () =>
       selectedServiceId
-        ? enrichedServices.find((service) => service.id === selectedServiceId)
+        ? servicesList.find((service) => service.id === selectedServiceId)
         : null,
-    [enrichedServices, selectedServiceId],
+    [servicesList, selectedServiceId],
   );
 
-  const filteredServices = enrichedServices.filter((service) => {
-    const matchesSearch = service.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const matchesTab =
-      activeTab === "Semua" ||
-      service.tags.some((tag) => tag.toUpperCase() === activeTab.toUpperCase());
-    return matchesSearch && matchesTab;
-  });
+  const filteredServices = useMemo(() => {
+    return servicesList.filter((service) => {
+      const matchesSearch = service.name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const matchesTab =
+        activeTab === "Semua" ||
+        service.tags.some((tag) => tag.toUpperCase() === activeTab.toUpperCase());
+      return matchesSearch && matchesTab;
+    });
+  }, [servicesList, searchTerm, activeTab]);
 
   const updateQuery = (updates) => {
     const next = new URLSearchParams(searchParams);
@@ -153,7 +168,11 @@ const AjukanSuratPage = ({ user }) => {
       </div>
 
       {/* Services Grid */}
-      {filteredServices.length > 0 ? (
+      {loading ? (
+        <div className="text-center py-12 text-xs text-gray-400 font-medium">
+          Memuat daftar layanan surat...
+        </div>
+      ) : filteredServices.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {filteredServices.map((service) => (
             <ServiceCard

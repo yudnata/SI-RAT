@@ -1,16 +1,45 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import AuthSidePanel from "../components/AuthSidePanel";
+import { api } from "../../../utils/api.js";
 
 const LoginPage = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLoginSuccess?.();
+    if (!identifier || !password) {
+      setErrorMsg("Harap isi semua field!");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg("");
+
+    try {
+      const response = await api.post("/auth/login", { identifier, password });
+      const { user, accessToken } = response.data;
+      
+      localStorage.setItem("sirat_token", accessToken);
+      localStorage.setItem("sirat_user", JSON.stringify(user));
+
+      // Map role to lowercase to match frontend route keys
+      let role = "masyarakat";
+      if (user.role === "KALING") role = "kaling";
+      if (user.role === "KELURAHAN") role = "kelurahan";
+      if (user.role === "SUPER_ADMIN") role = "admin";
+
+      onLoginSuccess?.(role);
+    } catch (err) {
+      setErrorMsg(err.message || "Gagal masuk, periksa kembali NIK/Email dan Password Anda.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,6 +72,13 @@ const LoginPage = ({ onLoginSuccess }) => {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {errorMsg && (
+              <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                {errorMsg}
+              </div>
+            )}
+
             {/* Identifier */}
             <div>
               <label
@@ -132,11 +168,11 @@ const LoginPage = ({ onLoginSuccess }) => {
                       strokeWidth={1.5}
                     >
                       <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
-                      />
-                    </svg>
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
+                    />
+                  </svg>
                   ) : (
                     <svg
                       className="w-4 h-4"
@@ -182,9 +218,10 @@ const LoginPage = ({ onLoginSuccess }) => {
             <button
               type="submit"
               id="btn-login"
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow-md transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-300 text-white font-bold rounded-xl shadow-md transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm"
             >
-              Masuk
+              {loading ? "Memproses..." : "Masuk"}
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -249,44 +286,6 @@ const LoginPage = ({ onLoginSuccess }) => {
           </p>
         </div>
       </div>
-
-      {/* Debug Role Switcher Panel */}
-      <div className="fixed bottom-12 right-4 bg-white/95 backdrop-blur-sm border border-gray-200 shadow-xl rounded-xl p-4.5 z-50 space-y-2.5 max-w-xs">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-          Debug Switcher (Bypass Login)
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onLoginSuccess?.("masyarakat")}
-            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold rounded-lg transition-colors text-center"
-          >
-            Masyarakat
-          </button>
-          <button
-            type="button"
-            onClick={() => onLoginSuccess?.("kaling")}
-            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg transition-colors text-center"
-          >
-            Kaling
-          </button>
-          <button
-            type="button"
-            onClick={() => onLoginSuccess?.("kelurahan")}
-            className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-bold rounded-lg transition-colors text-center"
-          >
-            Kelurahan
-          </button>
-          <button
-            type="button"
-            onClick={() => onLoginSuccess?.("admin")}
-            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg transition-colors text-center"
-          >
-            Super Admin
-          </button>
-        </div>
-      </div>
-
       <div className="absolute bottom-4 left-0 right-0 text-center text-xs text-gray-400">
         © 2026 Digital Government Services. All rights reserved.
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -9,6 +9,8 @@ import {
 } from "react-router-dom";
 import LoginPage from "./features/auth/pages/LoginPage";
 import RegisterPage from "./features/auth/pages/RegisterPage";
+import { setLogoutCallback } from "./utils/api.js";
+import SettingsForm from "./features/masyarakat/components/SettingsForm";
 import KelurahanLayout from "./layouts/KelurahanLayout";
 import KelurahanDashboardPage from "./features/kelurahan/pages/KelurahanDashboardPage";
 import ValidasiSuratPage from "./features/kelurahan/pages/ValidasiSuratPage";
@@ -29,127 +31,50 @@ import AdminDashboardPage from "./features/admin/pages/AdminDashboardPage";
 import ManajemenStafPage from "./features/admin/pages/ManajemenStafPage";
 import ManajemenLayananPage from "./features/admin/pages/ManajemenLayananPage";
 import LogSistemPage from "./features/admin/pages/LogSistemPage";
-import { DUMMY_PENDING } from "./data/kalingPendingData";
-
-const DUMMY_USER = {
-  name: "Budi Santoso",
-  nik: "3275012304920005",
-  kk: "3275009876543210",
-  role: "Masyarakat",
-};
-
-const DUMMY_KALING = {
-  name: "Bpk. Herman",
-  role: "Neighborhood Head",
-};
-
-const DUMMY_LURAH = {
-  name: "Lurah Menteng",
-  role: "Admin Portal",
-};
-
-const DUMMY_ADMIN = {
-  name: "Super Admin",
-  role: "Super Admin",
-};
 
 const ROLE_ROUTES = {
   masyarakat: {
     layout: MasyarakatLayout,
-    user: DUMMY_USER,
     defaultPage: "beranda",
     pages: {
-      beranda: <BerandaPage user={DUMMY_USER} />,
-      ajukan: <AjukanSuratPage user={DUMMY_USER} />,
-      permohonan: <PermohonanSuratPage user={DUMMY_USER} />,
-      dokumen: <DokumenPage user={DUMMY_USER} />,
-      settings: (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl mx-auto shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Pengaturan Akun
-          </h2>
-          <p className="text-xs text-gray-400 mb-6">
-            Kelola konfigurasi privasi, keamanan, dan notifikasi akun Anda.
-          </p>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Halaman ini sekarang memakai route nyata di bawah <code>/dashboard</code>.
-            </p>
-          </div>
-        </div>
-      ),
+      beranda: <BerandaPage />,
+      ajukan: <AjukanSuratPage />,
+      permohonan: <PermohonanSuratPage />,
+      dokumen: <DokumenPage />,
+      settings: true,
     },
   },
   kaling: {
     layout: KalingLayout,
-    user: DUMMY_KALING,
     defaultPage: "dashboard",
     pages: {
       dashboard: true,
       verifikasi: true,
       riwayat: true,
       warga: true,
-      settings: (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl mx-auto shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Pengaturan Kaling
-          </h2>
-          <p className="text-xs text-gray-400 mb-6">
-            Konfigurasi panel kontrol Kepala Lingkungan.
-          </p>
-          <p className="text-sm text-gray-600">
-            Route halaman ini juga mengikuti prefix <code>/dashboard</code>.
-          </p>
-        </div>
-      ),
+      settings: true,
     },
   },
   kelurahan: {
     layout: KelurahanLayout,
-    user: DUMMY_LURAH,
     defaultPage: "dashboard",
     pages: {
       dashboard: true,
       "validasi-surat": true,
       "riwayat-surat": true,
       "verifikasi-warga": true,
-      settings: (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl mx-auto shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Pengaturan Kelurahan
-          </h2>
-          <p className="text-xs text-gray-400 mb-6">
-            Konfigurasi panel kontrol Kepala Kelurahan.
-          </p>
-          <p className="text-sm text-gray-600">
-            Route ini juga berada di bawah <code>/dashboard</code>.
-          </p>
-        </div>
-      ),
+      settings: true,
     },
   },
   admin: {
     layout: AdminLayout,
-    user: DUMMY_ADMIN,
     defaultPage: "dashboard",
     pages: {
       dashboard: true,
       staf: true,
       layanan: true,
       log: true,
-      settings: (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl mx-auto shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Pengaturan Admin
-          </h2>
-          <p className="text-xs text-gray-400 mb-6">
-            Konfigurasi kontrol sistem global dan hak akses.
-          </p>
-          <p className="text-sm text-gray-600">
-            Semua halaman admin sekarang konsisten di route <code>/dashboard</code>.
-          </p>
-        </div>
-      ),
+      settings: true,
     },
   },
 };
@@ -221,7 +146,7 @@ const InfoPage = ({ title, description }) => {
   );
 };
 
-const DashboardShell = ({ role, pendingList, setPendingList }) => {
+const DashboardShell = ({ role, currentUser, setCurrentUser, setToken }) => {
   const navigate = useNavigate();
   const params = useParams();
   const config = ROLE_ROUTES[role];
@@ -239,34 +164,17 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
   const Layout = config.layout;
   let content = null;
 
+  const currentActiveUser = currentUser
+    ? { ...currentUser, name: currentUser.namaLengkap }
+    : null;
+
   if (role === "masyarakat") {
-    if (activePage === "beranda") content = <BerandaPage user={DUMMY_USER} />;
-    if (activePage === "ajukan") content = <AjukanSuratPage user={DUMMY_USER} />;
-    if (activePage === "permohonan") content = <PermohonanSuratPage user={DUMMY_USER} />;
-    if (activePage === "dokumen") content = <DokumenPage user={DUMMY_USER} />;
+    if (activePage === "beranda") content = <BerandaPage />;
+    if (activePage === "ajukan") content = <AjukanSuratPage />;
+    if (activePage === "permohonan") content = <PermohonanSuratPage />;
+    if (activePage === "dokumen") content = <DokumenPage />;
     if (activePage === "settings") {
-      content = (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 max-w-xl mx-auto shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Pengaturan Akun
-          </h2>
-          <p className="text-xs text-gray-400 mb-6">
-            Kelola konfigurasi privasi, keamanan, dan notifikasi akun Anda.
-          </p>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Halaman ini sekarang memakai route nyata di bawah <code>/dashboard</code>.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard/login", { replace: true })}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      );
+      content = <SettingsForm currentUser={currentUser} setCurrentUser={setCurrentUser} />;
     }
   }
 
@@ -275,18 +183,10 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
       content = (
         <DashboardPage
           onNavigate={(id) => navigate(`/dashboard/${role}/${id}`)}
-          pendingList={pendingList}
         />
       );
     }
-    if (activePage === "verifikasi") {
-      content = (
-        <PerluVerifikasiPage
-          list={pendingList}
-          setList={setPendingList}
-        />
-      );
-    }
+    if (activePage === "verifikasi") content = <PerluVerifikasiPage />;
     if (activePage === "riwayat") content = <RiwayatVerifikasiPage />;
     if (activePage === "warga") content = <DaftarWargaPage />;
     if (activePage === "settings") {
@@ -304,8 +204,14 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
           <div className="mt-6">
             <button
               type="button"
-              onClick={() => navigate("/dashboard/login", { replace: true })}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
+              onClick={() => {
+                localStorage.removeItem("sirat_token");
+                localStorage.removeItem("sirat_user");
+                setToken(null);
+                setCurrentUser(null);
+                navigate("/dashboard/login", { replace: true });
+              }}
+              className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
             >
               Logout
             </button>
@@ -341,8 +247,14 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
           <div className="mt-6">
             <button
               type="button"
-              onClick={() => navigate("/dashboard/login", { replace: true })}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
+              onClick={() => {
+                localStorage.removeItem("sirat_token");
+                localStorage.removeItem("sirat_user");
+                setToken(null);
+                setCurrentUser(null);
+                navigate("/dashboard/login", { replace: true });
+              }}
+              className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
             >
               Logout
             </button>
@@ -378,8 +290,14 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
           <div className="mt-6">
             <button
               type="button"
-              onClick={() => navigate("/dashboard/login", { replace: true })}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
+              onClick={() => {
+                localStorage.removeItem("sirat_token");
+                localStorage.removeItem("sirat_user");
+                setToken(null);
+                setCurrentUser(null);
+                navigate("/dashboard/login", { replace: true });
+              }}
+              className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition-colors"
             >
               Logout
             </button>
@@ -394,12 +312,16 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
       activePage={activePage}
       onNavigate={(id) => {
         if (id === "logout") {
+          localStorage.removeItem("sirat_token");
+          localStorage.removeItem("sirat_user");
+          setToken(null);
+          setCurrentUser(null);
           navigate("/dashboard/login", { replace: true });
           return;
         }
         navigate(`/dashboard/${role}/${id}`);
       }}
-      user={config.user}
+      user={currentActiveUser}
     >
       {content}
     </Layout>
@@ -407,10 +329,33 @@ const DashboardShell = ({ role, pendingList, setPendingList }) => {
 };
 
 function AppRoutes() {
-  const [kalingPendingList, setKalingPendingList] = useState(DUMMY_PENDING);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const cached = localStorage.getItem("sirat_user");
+    return cached ? JSON.parse(cached) : null;
+  });
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem("sirat_token");
+  });
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Setup API logout hook
+    setLogoutCallback(() => {
+      localStorage.removeItem("sirat_token");
+      localStorage.removeItem("sirat_user");
+      setCurrentUser(null);
+      setToken(null);
+      navigate("/dashboard/login", { replace: true });
+    });
+  }, [navigate]);
+
   const handleLoginSuccess = (role = "masyarakat") => {
+    const cachedUser = localStorage.getItem("sirat_user");
+    const cachedToken = localStorage.getItem("sirat_token");
+    if (cachedUser && cachedToken) {
+      setCurrentUser(JSON.parse(cachedUser));
+      setToken(cachedToken);
+    }
     const config = ROLE_ROUTES[role] ?? ROLE_ROUTES.masyarakat;
     navigate(`/dashboard/${role}/${config.defaultPage}`, { replace: true });
   };
@@ -434,14 +379,24 @@ function AppRoutes() {
           element={<InfoPage title={page.title} description={page.description} />}
         />
       ))}
-      <Route path="/dashboard/:role" element={<DashboardRedirect />} />
+      <Route
+        path="/dashboard/:role"
+        element={
+          token ? <DashboardRedirect /> : <Navigate to="/dashboard/login" replace />
+        }
+      />
       <Route
         path="/dashboard/:role/:page"
         element={
-          <DashboardRoute
-            pendingList={kalingPendingList}
-            setPendingList={setKalingPendingList}
-          />
+          token ? (
+            <DashboardRoute
+              currentUser={currentUser}
+              setCurrentUser={setCurrentUser}
+              setToken={setToken}
+            />
+          ) : (
+            <Navigate to="/dashboard/login" replace />
+          )
         }
       />
       <Route path="*" element={<Navigate to="/dashboard/login" replace />} />
@@ -462,13 +417,25 @@ function DashboardRedirect() {
   );
 }
 
-function DashboardRoute({ pendingList, setPendingList }) {
+function DashboardRoute({ currentUser, setCurrentUser, setToken }) {
   const { role } = useParams();
+  
+  // Access control validation: check if the route role matches the authenticated user role
+  let expectedRoleKey = "masyarakat";
+  if (currentUser?.role === "KALING") expectedRoleKey = "kaling";
+  if (currentUser?.role === "KELURAHAN") expectedRoleKey = "kelurahan";
+  if (currentUser?.role === "SUPER_ADMIN") expectedRoleKey = "admin";
+
+  if (role !== expectedRoleKey) {
+    return <Navigate to={`/dashboard/${expectedRoleKey}`} replace />;
+  }
+
   return (
     <DashboardShell
       role={role}
-      pendingList={pendingList}
-      setPendingList={setPendingList}
+      currentUser={currentUser}
+      setCurrentUser={setCurrentUser}
+      setToken={setToken}
     />
   );
 }

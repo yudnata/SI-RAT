@@ -187,8 +187,20 @@ const DocumentPreviewModal = ({
               </div>
             </div>
 
+          ) : doc && doc.startsWith("http") ? (
+            /* Real file preview from server */
+            <div className="flex flex-col items-center justify-center p-6 gap-4">
+              {isImage ? (
+                <div className="w-full max-w-lg bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm p-2 flex justify-center bg-slate-50">
+                  <img src={doc} alt="Pratinjau Dokumen" className="max-h-[60vh] max-w-full object-contain rounded-lg" />
+                </div>
+              ) : (
+                <div className="w-full h-[65vh] bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <iframe src={doc} className="w-full h-full border-0" title="Pratinjau PDF" />
+                </div>
+              )}
+            </div>
           ) : isImage ? (
-
             /* Gambar — placeholder */
             <div className="flex flex-col items-center justify-center py-16 px-8 gap-4">
               <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center">

@@ -2,6 +2,7 @@ import { useMemo, useState, Fragment } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getRequirementStatus } from '../../../data/userDocuments';
 import { FLOW_STEP_LABELS } from '../../../data/serviceData.jsx';
+import { api } from '../../../utils/api.js';
 
 // ─── Step Indicator ────────────────────────────────────────────────────────────
 const StepIndicator = ({ currentStep }) => {
@@ -217,11 +218,41 @@ const DynamicField = ({ field, value, onChange }) => {
 };
 
 // ─── Step 2: Formulir (Dynamic fields) ──────────────────────────────────────────
-const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack }) => {
+const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack, files, setFiles }) => {
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const specificFields = service.specificFields || [];
   const reqStatus = getRequirementStatus(service);
   const needsUpload = reqStatus.filter(r => !r.available);
+
+  const handleNextClick = () => {
+    // Check validation of general details
+    const missingFields = [];
+    if (!formData.tempatLahir) missingFields.push("Tempat Lahir");
+    if (!formData.tanggalLahir) missingFields.push("Tanggal Lahir");
+    if (!formData.pekerjaan) missingFields.push("Pekerjaan");
+    if (!formData.alamat) missingFields.push("Alamat");
+
+    // specific fields validation
+    specificFields.forEach((field) => {
+      if (!formData[field.name]) {
+        missingFields.push(field.label);
+      }
+    });
+
+    if (missingFields.length > 0) {
+      alert(`Harap lengkapi kolom berikut: ${missingFields.join(", ")}`);
+      return;
+    }
+
+    // Check files validation
+    const missingFiles = needsUpload.filter(r => !files[r.key]);
+    if (missingFiles.length > 0) {
+      alert(`Harap unggah dokumen berikut: ${missingFiles.map(f => f.label).join(", ")}`);
+      return;
+    }
+
+    onNext();
+  };
 
   return (
     <div className="space-y-4">
@@ -248,7 +279,7 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack }) 
         {/* Nama Lengkap */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Nama Lengkap</label>
-          <input readOnly value={user?.name ?? 'Budi Santoso'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 cursor-not-allowed" />
+          <input readOnly value={user?.namaLengkap ?? user?.name ?? 'Budi Santoso'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 cursor-not-allowed" />
         </div>
 
         {/* Tempat Lahir */}
@@ -349,12 +380,31 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack }) 
         {needsUpload.length > 0 && (
           <div className="space-y-2">
             <p className="text-[10px] text-amber-600 font-medium mb-2">Dokumen berikut perlu dilampirkan manual:</p>
-            {needsUpload.map((r) => (
-              <div key={r.key} className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                <p className="text-xs font-medium text-gray-500">{r.label}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Klik untuk upload — JPG, PNG, PDF (maks. 5MB)</p>
-              </div>
-            ))}
+            {needsUpload.map((r) => {
+              const fileSelected = files[r.key];
+              return (
+                <div 
+                  key={r.key} 
+                  className={`border-2 border-dashed rounded-lg p-3 text-center transition-all cursor-pointer relative
+                    ${fileSelected ? 'border-green-400 bg-green-50/20' : 'border-gray-300 hover:border-blue-400'}`}
+                >
+                  <input
+                    type="file"
+                    id={`file-input-${r.key}`}
+                    onChange={(e) => {
+                      if (e.target.files[0]) {
+                        setFiles({ ...files, [r.key]: e.target.files[0] });
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <p className={`text-xs font-semibold ${fileSelected ? 'text-green-700' : 'text-gray-500'}`}>{r.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {fileSelected ? `Terpilih: ${fileSelected.name} (${(fileSelected.size / 1024).toFixed(1)} KB)` : 'Klik untuk upload — JPG, PNG, PDF (maks. 5MB)'}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -372,7 +422,7 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack }) 
         <button onClick={onBack} className="px-5 py-2.5 text-sm font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
           ← Kembali
         </button>
-        <button onClick={onNext} className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+        <button onClick={handleNextClick} className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
           Lanjut ke Konfirmasi
         </button>
       </div>
@@ -395,12 +445,19 @@ const Row = ({ label, value }) => (
   </div>
 );
 
-const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack }) => {
+const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack, files, submitting, submitError }) => {
   const specificFields = service.specificFields || [];
   const reqStatus = getRequirementStatus(service);
 
   return (
     <div className="space-y-5">
+      {submitError && (
+        <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
+          {submitError}
+        </div>
+      )}
+
       {/* Data Pribadi */}
       <div className="border border-gray-200 rounded-xl p-5">
         <SectionLabel
@@ -409,7 +466,7 @@ const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack }) => {
         />
         <div className="grid grid-cols-2 gap-y-4 gap-x-6">
           <Row label="NIK (Nomor Induk Kependudukan)" value={user?.nik ?? '3275012304920005'} />
-          <Row label="Nama Lengkap" value={user?.name ?? 'BUDI SANTOSO'} />
+          <Row label="Nama Lengkap" value={user?.namaLengkap ?? user?.name ?? 'BUDI SANTOSO'} />
           <Row label="Tempat & Tanggal Lahir" value={formData.tempatLahir ? `${formData.tempatLahir}, ${formData.tanggalLahir}` : 'Denpasar, 12 April 1992'} />
           <Row label="Jenis Kelamin / Agama" value={`${formData.jenisKelamin || 'Laki-Laki'} / ${formData.agama || 'Hindu'}`} />
           <Row label="Pekerjaan" value={formData.pekerjaan || 'Karyawan Swasta'} />
@@ -464,34 +521,46 @@ const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack }) => {
           label="Dokumen Terlampir"
         />
         <div className="grid grid-cols-2 gap-3">
-          {reqStatus.map((r) => (
-            <div key={r.key} className="border border-gray-200 rounded-lg px-3 py-2.5 flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-700 truncate">{r.available ? r.doc.fileName : r.label}</span>
-              <span className={`flex items-center gap-1 text-[10px] font-bold ${r.available ? 'text-green-600' : 'text-amber-600'}`}>
-                {r.available ? (
-                  <>
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                    TERUNDUH
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" /></svg>
-                    MANUAL
-                  </>
-                )}
-              </span>
-            </div>
-          ))}
+          {reqStatus.map((r) => {
+            const fileSelected = files[r.key];
+            return (
+              <div key={r.key} className="border border-gray-200 rounded-lg px-3 py-2.5 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700 truncate">
+                  {r.available ? r.doc.fileName : (fileSelected ? fileSelected.name : r.label)}
+                </span>
+                <span className={`flex items-center gap-1 text-[10px] font-bold ${r.available || fileSelected ? 'text-green-600' : 'text-amber-600'}`}>
+                  {r.available ? (
+                    <>
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      ADA DI PROFIL
+                    </>
+                  ) : (
+                    fileSelected ? (
+                      <>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        TERPILIH
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" /></svg>
+                        MANUAL
+                      </>
+                    )
+                  )}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="flex justify-between gap-3 pt-1">
-        <button onClick={onBack} className="px-5 py-2.5 text-sm font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+        <button onClick={onBack} disabled={submitting} className="px-5 py-2.5 text-sm font-semibold text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
           ← Kembali
         </button>
-        <button onClick={onSubmit} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2">
+        <button onClick={onSubmit} disabled={submitting} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2 disabled:bg-blue-300">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
-          Kirim Pengajuan
+          {submitting ? "Mengirim..." : "Kirim Pengajuan"}
         </button>
       </div>
     </div>
@@ -502,6 +571,9 @@ const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack }) => {
 const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [files, setFiles] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const currentStep = useMemo(() => {
     const rawStep = Number(searchParams.get("step") || 1);
@@ -511,12 +583,12 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
 
   const buildInitialFormData = () => {
     const base = {
-      tempatLahir: "",
-      tanggalLahir: "",
-      jenisKelamin: "Laki-laki",
-      agama: "",
-      pekerjaan: "",
-      alamat: "",
+      tempatLahir: user?.tempatLahir || "",
+      tanggalLahir: user?.tanggalLahir || "",
+      jenisKelamin: user?.jenisKelamin || "Laki-laki",
+      agama: user?.agama || "",
+      pekerjaan: user?.pekerjaan || "",
+      alamat: user?.alamat || "",
     };
 
     (service?.specificFields || []).forEach((field) => {
@@ -548,9 +620,40 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
     onClose?.();
   };
 
-  const handleSubmit = () => {
-    onSuccess?.();
-    handleClose();
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setSubmitError("");
+
+    try {
+      // Create submission
+      const response = await api.post("/submissions", {
+        serviceId: service.dbId || service.id,
+        formData,
+      });
+
+      const submission = response.data.submission;
+
+      // Upload each file
+      for (const [key, fileObj] of Object.entries(files)) {
+        const payload = new FormData();
+        payload.append("file", fileObj);
+        payload.append("documentKey", key);
+
+        // Find label
+        const keyIdx = service.requirementKeys.indexOf(key);
+        const label = keyIdx !== -1 ? service.requirements[keyIdx] : key;
+        payload.append("documentLabel", label);
+
+        await api.post(`/submissions/${submission.id}/documents`, payload, true);
+      }
+
+      onSuccess?.();
+      handleClose();
+    } catch (err) {
+      setSubmitError(err.message || "Gagal mengirimkan pengajuan surat.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const stepTitles = {
@@ -594,10 +697,10 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
             <StepPersyaratan service={service} user={user} onNext={() => updateStep(2)} onCancel={handleClose} />
           )}
           {currentStep === 2 && (
-            <StepFormulir service={service} user={user} formData={formData} setFormData={setFormData} onNext={() => updateStep(3)} onBack={() => updateStep(1)} />
+            <StepFormulir service={service} user={user} formData={formData} setFormData={setFormData} onNext={() => updateStep(3)} onBack={() => updateStep(1)} files={files} setFiles={setFiles} />
           )}
           {currentStep === 3 && (
-            <StepKonfirmasi service={service} user={user} formData={formData} onSubmit={handleSubmit} onBack={() => updateStep(2)} />
+            <StepKonfirmasi service={service} user={user} formData={formData} onSubmit={handleSubmit} onBack={() => updateStep(2)} files={files} submitting={submitting} submitError={submitError} />
           )}
         </div>
       </div>

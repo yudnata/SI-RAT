@@ -1,41 +1,5 @@
-const DUMMY_USER = {
-  name: "Budi Santoso",
-  nik: "3275012304920005",
-  kk: "3275009876543210",
-};
-
-const ACTIVE_SUBMISSION = {
-  id: "PR-2023-0892",
-  type: "Surat Keterangan Usaha (SKU)",
-  estimasiSelesai: "15 Okt 2023",
-  steps: [
-    {
-      label: "Permohonan Diterima",
-      date: "12 Okt, 09:15",
-      note: "Berhasil diserahkan",
-      status: "done",
-    },
-    {
-      label: "Verifikasi Kepala Lingkungan",
-      date: "12 Okt, 14:30",
-      note: "Disetujui oleh Bpk. Herman",
-      status: "done",
-    },
-    {
-      label: "Proses Administrasi Desa",
-      date: "30 menit lalu",
-      note: "Sedang diproses oleh petugas kantor desa",
-      status: "active",
-      warning: "Menunggu tanda tangan digital Kepala Desa",
-    },
-    {
-      label: "Selesai & Unduh",
-      date: null,
-      note: "Dokumen belum tersedia",
-      status: "pending",
-    },
-  ],
-};
+import { useState, useEffect } from "react";
+import { api } from "../../../utils/api.js";
 
 const StatCard = ({ label, value, sub, color, icon }) => {
   const colorMap = {
@@ -59,13 +23,94 @@ const StatCard = ({ label, value, sub, color, icon }) => {
   );
 };
 
-const BerandaPage = ({ user = DUMMY_USER }) => {
+const BerandaPage = ({ user }) => {
+  const [stats, setStats] = useState({ total: 0, processing: 0, completed: 0 });
+  const [activeSubmission, setActiveSubmission] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+      try {
+        const response = await api.get("/submissions?limit=100");
+        const list = response.data || [];
+        
+        const total = list.length;
+        const processing = list.filter(s => ["DIPROSES", "VERIFIKASI_KALING", "VERIFIKASI_KELURAHAN"].includes(s.status)).length;
+        const completed = list.filter(s => s.status === "SELESAI").length;
+        setStats({ total, processing, completed });
+
+        // Find latest active submission
+        const active = list.find(s => ["DIPROSES", "VERIFIKASI_KALING", "VERIFIKASI_KELURAHAN"].includes(s.status));
+        if (active) {
+          // Construct timeline steps
+          const steps = [];
+          
+          // Step 1: Diajukan (Masyarakat)
+          const diajukan = active.timeline.find(t => t.action === "DIAJUKAN");
+          steps.push({
+            label: "Permohonan Dikirim",
+            date: diajukan ? new Date(diajukan.createdAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "Selesai",
+            note: "Berhasil diserahkan secara digital",
+            status: "done",
+          });
+
+          // Step 2: Kaling (if required)
+          if (active.service.needsKaling) {
+            const kalingDone = active.timeline.find(t => t.action === "DIVERIFIKASI_KALING");
+            const isPendingKaling = active.status === "VERIFIKASI_KALING";
+            steps.push({
+              label: "Verifikasi Kepala Lingkungan",
+              date: kalingDone ? new Date(kalingDone.createdAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : (isPendingKaling ? "Sedang Berjalan" : null),
+              note: kalingDone ? `Disetujui oleh Kaling ${kalingDone.actor.namaLengkap}` : (isPendingKaling ? "Menunggu verifikasi Kepala Lingkungan setempat" : "Belum diproses"),
+              status: kalingDone ? "done" : (isPendingKaling ? "active" : "pending"),
+            });
+          }
+
+          // Step 3: Kelurahan (if required)
+          if (active.service.needsKelurahan) {
+            const kelurahanDone = active.timeline.find(t => t.action === "DIVALIDASI_KELURAHAN");
+            const isPendingKelurahan = active.status === "VERIFIKASI_KELURAHAN";
+            steps.push({
+              label: "Validasi Kelurahan",
+              date: kelurahanDone ? new Date(kelurahanDone.createdAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : (isPendingKelurahan ? "Sedang Berjalan" : null),
+              note: kelurahanDone ? "Selesai divalidasi dan ditandatangani" : (isPendingKelurahan ? "Menunggu tanda tangan dan validasi Kelurahan" : "Belum diproses"),
+              status: kelurahanDone ? "done" : (isPendingKelurahan ? "active" : "pending"),
+            });
+          }
+
+          // Step 4: Selesai
+          steps.push({
+            label: "Selesai",
+            date: active.status === "SELESAI" ? new Date(active.updatedAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : null,
+            note: active.status === "SELESAI" ? "Surat resmi siap diunduh" : "Surat hasil akhir",
+            status: active.status === "SELESAI" ? "completed" : "pending",
+          });
+
+          setActiveSubmission({
+            id: active.submissionNumber,
+            type: active.service.name,
+            estimasiSelesai: "1-2 Hari Kerja",
+            steps,
+          });
+        } else {
+          setActiveSubmission(null);
+        }
+      } catch (err) {
+        console.error("Gagal memuat stats beranda:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubmissions();
+  }, []);
+
   return (
     <div className="w-full space-y-6">
       {/* Greeting */}
       <div>
         <h1 className="text-3xl font-extrabold text-gray-900">
-          Halo, {user.name}
+          Halo, {user?.namaLengkap || "Warga"}
         </h1>
         <p className="text-gray-500 text-sm mt-1">
           Pantau status pengajuan surat dan dokumen kependudukan Anda di sini.
@@ -76,8 +121,8 @@ const BerandaPage = ({ user = DUMMY_USER }) => {
       <div className="grid grid-cols-3 gap-6">
         <StatCard
           label="Total Pengajuan"
-          value="12"
-          sub="Sejak Januari 2023"
+          value={stats.total}
+          sub="Riwayat pengajuan surat"
           color="blue"
           icon={
             <svg
@@ -97,8 +142,8 @@ const BerandaPage = ({ user = DUMMY_USER }) => {
         />
         <StatCard
           label="Dalam Proses"
-          value="2"
-          sub="1 membutuhkan dokumen"
+          value={stats.processing}
+          sub="Sedang diproses petugas"
           color="orange"
           icon={
             <svg
@@ -118,8 +163,8 @@ const BerandaPage = ({ user = DUMMY_USER }) => {
         />
         <StatCard
           label="Selesai"
-          value="10"
-          sub="Semua dokumen tersedia"
+          value={stats.completed}
+          sub="Dokumen siap unduh"
           color="green"
           icon={
             <svg
@@ -141,95 +186,93 @@ const BerandaPage = ({ user = DUMMY_USER }) => {
 
       {/* Active submission */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-gray-800">Pengajuan Aktif</h2>
-          <span className="text-xs text-gray-400 font-medium">
-            ID: {ACTIVE_SUBMISSION.id}
-          </span>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-5">
-          {/* Left: type & estimasi */}
-          <div className="bg-gray-50 rounded-xl p-4 flex-shrink-0 w-full sm:w-48">
-            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">
-              JENIS SURAT
-            </p>
-            <p className="text-sm font-bold text-gray-800 leading-snug">
-              {ACTIVE_SUBMISSION.type}
-            </p>
-            <div className="mt-4">
+        <h2 className="text-sm font-bold text-gray-800 mb-4">Pengajuan Aktif Terkini</h2>
+        
+        {loading ? (
+          <p className="text-xs text-gray-400">Memuat data pengajuan aktif...</p>
+        ) : activeSubmission ? (
+          <div className="flex flex-col sm:flex-row gap-5">
+            {/* Left: type & estimasi */}
+            <div className="bg-gray-50 rounded-xl p-4 flex-shrink-0 w-full sm:w-48">
               <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">
-                ESTIMASI SELESAI
+                JENIS SURAT
               </p>
-              <p className="text-sm font-semibold text-gray-700">
-                {ACTIVE_SUBMISSION.estimasiSelesai}
+              <p className="text-sm font-bold text-gray-800 leading-snug">
+                {activeSubmission.type}
               </p>
+              <div className="mt-4">
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">
+                  NOMOR PENGAJUAN
+                </p>
+                <p className="text-xs font-mono text-gray-650">
+                  {activeSubmission.id}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: timeline */}
+            <div className="flex-1 space-y-0">
+              {activeSubmission.steps.map((s, idx) => (
+                <div key={idx} className="flex gap-3">
+                  {/* Icon + line */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
+                      ${s.status === "done" ? "bg-green-500" : s.status === "active" ? "bg-blue-600" : "bg-gray-200"}`}
+                    >
+                      {s.status === "done" && (
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                      {s.status === "active" && (
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                      )}
+                    </div>
+                    {idx < activeSubmission.steps.length - 1 && (
+                      <div
+                        className={`w-0.5 flex-1 my-1 ${s.status === "done" ? "bg-green-300" : "bg-gray-200"}`}
+                        style={{ minHeight: "24px" }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="pb-4">
+                    <div className="flex items-baseline gap-2">
+                      <p
+                        className={`text-sm font-semibold ${s.status === "active" ? "text-blue-700" : s.status === "done" ? "text-gray-800" : "text-gray-400"}`}
+                      >
+                        {s.label}
+                      </p>
+                      {s.date && (
+                        <span className="text-xs text-gray-400">{s.date}</span>
+                      )}
+                    </div>
+                    {s.note && (
+                      <p className="text-xs text-gray-400 mt-0.5">{s.note}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* Right: timeline */}
-          {/* Right: timeline */}
-          <div className="flex-1 space-y-0">
-            {ACTIVE_SUBMISSION.steps.map((s, idx) => (
-              <div key={idx} className="flex gap-3">
-                {/* Icon + line */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
-                    ${s.status === "done" ? "bg-green-500" : s.status === "active" ? "bg-blue-600" : "bg-gray-200"}`}
-                  >
-                    {s.status === "done" && (
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                    {s.status === "active" && (
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                    )}
-                  </div>
-                  {idx < ACTIVE_SUBMISSION.steps.length - 1 && (
-                    <div
-                      className={`w-0.5 flex-1 my-1 ${s.status === "done" ? "bg-green-300" : "bg-gray-200"}`}
-                      style={{ minHeight: "24px" }}
-                    />
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="pb-4">
-                  <div className="flex items-baseline gap-2">
-                    <p
-                      className={`text-sm font-semibold ${s.status === "active" ? "text-blue-700" : s.status === "done" ? "text-gray-800" : "text-gray-400"}`}
-                    >
-                      {s.label}
-                    </p>
-                    {s.date && (
-                      <span className="text-xs text-gray-400">{s.date}</span>
-                    )}
-                  </div>
-                  {s.note && (
-                    <p className="text-xs text-gray-400 mt-0.5">{s.note}</p>
-                  )}
-                  {s.warning && (
-                    <div className="mt-1.5 bg-transparent border border-amber-300 text-amber-700 text-xs px-3 py-1.5 rounded-lg font-medium">
-                      {s.warning}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+        ) : (
+          <div className="text-center py-6">
+            <p className="text-xs text-gray-400 font-medium">Tidak ada pengajuan aktif saat ini.</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">Semua permohonan surat Anda telah selesai atau dibatalkan.</p>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

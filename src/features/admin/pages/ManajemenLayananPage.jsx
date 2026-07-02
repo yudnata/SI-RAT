@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { SERVICES as SHARED_SERVICES } from "../../../data/serviceData.jsx";
+import { api } from "../../../utils/api.js";
 
 const AVAILABLE_REQUIREMENTS = [
   { key: "ktp", label: "KTP (Kartu Tanda Penduduk)" },
@@ -13,28 +13,12 @@ const AVAILABLE_REQUIREMENTS = [
   { key: "nikah", label: "Surat Nikah / Akta Perkawinan" },
 ];
 
-// Map shared service data to the admin page format
-const buildInitialServices = () =>
-  SHARED_SERVICES.map((s, idx) => ({
-    id: idx + 1,
-    name: s.name,
-    category:
-      s.tags.find((t) => !["KALING SAJA", "KELURAHAN"].includes(t)) || "Umum",
-    requirements: s.requirements,
-    requirementKeys: s.requirementKeys || [],
-    flow: s.flow,
-    active: true,
-    needsKaling: s.needsKaling,
-    needsKelurahan: s.needsKelurahan,
-    forwardTo: s.forwardTo,
-  }));
-
-const DUMMY_SERVICES = buildInitialServices();
-
 const ManajemenLayananPage = () => {
-  const [services, setServices] = useState(DUMMY_SERVICES);
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
   const routeSearchQuery = searchParams.get("q") || "";
   const routeModal = searchParams.get("modal");
   const routeIsModalOpen = routeModal === "add" || routeModal === "edit";
@@ -49,6 +33,38 @@ const ManajemenLayananPage = () => {
   const [selectedReqKeys, setSelectedReqKeys] = useState(["ktp", "kk"]);
   const [formFlow, setFormFlow] = useState("Kaling ➔ Kelurahan");
 
+  const fetchServices = async () => {
+    try {
+      const response = await api.get("/admin/services");
+      const mapped = (response.data.services || []).map((s) => {
+        // Find category
+        const cat = s.tags?.find((t) => !["KALING SAJA", "KELURAHAN"].includes(t)) || "Umum";
+        return {
+          id: s.id,
+          name: s.name,
+          slug: s.slug,
+          category: cat,
+          requirements: s.requirements,
+          requirementKeys: s.requirementKeys,
+          flow: s.flow,
+          flowSteps: s.flowSteps,
+          active: s.isActive,
+          needsKaling: s.needsKaling,
+          needsKelurahan: s.needsKelurahan,
+        };
+      });
+      setServices(mapped);
+    } catch (err) {
+      console.error("Gagal mengambil daftar layanan:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
   const updateQuery = (updates) => {
     const next = new URLSearchParams(searchParams);
     Object.entries(updates).forEach(([key, value]) => {
@@ -61,7 +77,7 @@ const ManajemenLayananPage = () => {
     navigate({ search: next.toString() }, { replace: true });
   };
 
-  const handleSaveService = (e) => {
+  const handleSaveService = async (e) => {
     e.preventDefault();
     if (!formName || selectedReqKeys.length === 0) return;
 
@@ -70,43 +86,44 @@ const ManajemenLayananPage = () => {
       return match ? match.label : k;
     });
 
-    if (isEditMode) {
-      setServices(
-        services.map((s) =>
-          s.id === selectedServiceId
-            ? {
-                ...s,
-                name: formName,
-                category: formCategory,
-                requirements: reqLabels,
-                requirementKeys: selectedReqKeys,
-                flow: formFlow,
-              }
-            : s,
-        ),
-      );
-    } else {
-      const newService = {
-        id: Date.now(),
-        name: formName,
-        category: formCategory,
-        requirements: reqLabels,
-        requirementKeys: selectedReqKeys,
-        flow: formFlow,
-        active: true,
-      };
-      setServices([newService, ...services]);
+    const isKaling = formFlow.includes("Kaling");
+    const isKelurahan = formFlow.includes("Kelurahan");
+
+    const steps = ["masyarakat"];
+    if (isKaling) steps.push("kaling");
+    if (isKelurahan) steps.push("kelurahan");
+
+    const payload = {
+      name: formName,
+      requirements: reqLabels,
+      requirementKeys: selectedReqKeys,
+      flow: formFlow,
+      flowSteps: steps,
+      needsKaling: isKaling,
+      needsKelurahan: isKelurahan,
+      tags: [formCategory],
+    };
+
+    try {
+      if (isEditMode) {
+        await api.put(`/admin/services/${selectedServiceId}`, payload);
+      } else {
+        const slug = formName.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+        await api.post("/admin/services", { ...payload, slug });
+      }
+
+      updateQuery({ modal: "", id: "" });
+      setIsEditMode(false);
+      setSelectedServiceId(null);
+      setFormName("");
+      setFormCategory("Kependudukan");
+      setSelectedReqKeys(["ktp", "kk"]);
+      setFormFlow("Kaling ➔ Kelurahan");
+
+      fetchServices();
+    } catch (err) {
+      alert(err.message || "Gagal menyimpan perubahan layanan.");
     }
-
-    updateQuery({ modal: "", id: "" });
-    setIsEditMode(false);
-    setSelectedServiceId(null);
-
-    // Reset Form
-    setFormName("");
-    setFormCategory("Kependudukan");
-    setSelectedReqKeys(["ktp", "kk"]);
-    setFormFlow("Kaling ➔ Kelurahan");
   };
 
   const handleEditClick = (service) => {
@@ -129,32 +146,24 @@ const ManajemenLayananPage = () => {
     updateQuery({ modal: "add", id: "" });
   };
 
-  const toggleActive = (id) => {
-    setServices(
-      services.map((s) => {
-        if (s.id === id) {
-          return { ...s, active: !s.active };
-        }
-        return s;
-      }),
-    );
-  };
-
-  const deleteService = (id) => {
-    if (
-      confirm(
-        "Apakah Anda yakin ingin menghapus layanan surat ini dari katalog?",
-      )
-    ) {
-      setServices(services.filter((s) => s.id !== id));
+  const toggleActive = async (id) => {
+    const matched = services.find((s) => s.id === id);
+    if (!matched) return;
+    try {
+      await api.patch(`/admin/services/${id}/status`, { isActive: !matched.active });
+      fetchServices();
+    } catch (err) {
+      alert(err.message || "Gagal mengubah status aktif.");
     }
   };
 
-  const filteredServices = services.filter(
-    (s) =>
-      s.name.toLowerCase().includes(routeSearchQuery.toLowerCase()) ||
-      s.category.toLowerCase().includes(routeSearchQuery.toLowerCase()),
-  );
+  const filteredServices = useMemo(() => {
+    return services.filter(
+      (s) =>
+        s.name.toLowerCase().includes(routeSearchQuery.toLowerCase()) ||
+        s.category.toLowerCase().includes(routeSearchQuery.toLowerCase())
+    );
+  }, [services, routeSearchQuery]);
 
   return (
     <div className="w-full space-y-6 pb-12">
@@ -162,29 +171,18 @@ const ManajemenLayananPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl font-extrabold text-gray-900">
-            Manajemen Layanan & Formulir Surat
+            Manajemen Katalog Layanan
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Konfigurasi jenis layanan surat administrasi kependudukan, prasyarat
-            berkas, dan alur validasinya.
+            Konfigurasi jenis layanan surat administrasi kependudukan, prasyarat berkas, dan alur validasinya.
           </p>
         </div>
         <button
           onClick={handleAddNewClick}
           className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-lg text-xs transition-all shadow-md"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           Tambah Layanan
         </button>
@@ -194,18 +192,8 @@ const ManajemenLayananPage = () => {
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96 shadow-sm rounded-lg">
           <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            <svg
-              className="w-4 h-4 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
           </span>
           <input
@@ -213,14 +201,18 @@ const ManajemenLayananPage = () => {
             placeholder="Cari jenis surat atau kategori..."
             value={routeSearchQuery}
             onChange={(e) => updateQuery({ q: e.target.value })}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg text-xs transition-all text-gray-800"
+            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-305 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg text-xs transition-all text-gray-800 font-medium"
           />
         </div>
       </div>
 
       {/* Services List Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredServices.length > 0 ? (
+        {loading ? (
+          <div className="col-span-2 text-center py-12 text-xs text-gray-400 font-medium">
+            Memuat katalog layanan...
+          </div>
+        ) : filteredServices.length > 0 ? (
           filteredServices.map((service) => (
             <div
               key={service.id}
@@ -288,12 +280,6 @@ const ManajemenLayananPage = () => {
                 >
                   Ubah Status
                 </button>
-                <button
-                  onClick={() => deleteService(service.id)}
-                  className="px-3 py-1.5 border border-red-200 hover:bg-red-50 text-red-600 rounded-lg font-bold text-[10px] transition-all"
-                >
-                  Hapus
-                </button>
               </div>
             </div>
           ))
@@ -310,13 +296,11 @@ const ManajemenLayananPage = () => {
           <div className="bg-white border border-gray-200 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-gray-800">
-                {isEditMode
-                  ? "Edit Layanan Surat"
-                  : "Tambah Layanan Surat Baru"}
+                {isEditMode ? "Edit Layanan Surat" : "Tambah Layanan Surat Baru"}
               </h3>
               <button
                 onClick={() => updateQuery({ modal: "", id: "" })}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 font-bold text-xs"
               >
                 ✕
               </button>
@@ -344,7 +328,7 @@ const ManajemenLayananPage = () => {
                 <select
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-gray-700"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-gray-700 bg-white"
                 >
                   <option value="Kependudukan">Kependudukan</option>
                   <option value="Ekonomi">Ekonomi</option>
@@ -360,7 +344,7 @@ const ManajemenLayananPage = () => {
                 <select
                   value={formFlow}
                   onChange={(e) => setFormFlow(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-gray-700"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-gray-700 bg-white"
                 >
                   <option value="Kaling ➔ Kelurahan">Kaling ➔ Kelurahan</option>
                   <option value="Kelurahan Langsung">Kelurahan Langsung</option>
@@ -386,7 +370,7 @@ const ManajemenLayananPage = () => {
                           onChange={() => {
                             if (isChecked) {
                               setSelectedReqKeys(
-                                selectedReqKeys.filter((k) => k !== req.key),
+                                selectedReqKeys.filter((k) => k !== req.key)
                               );
                             } else {
                               setSelectedReqKeys([...selectedReqKeys, req.key]);
@@ -394,10 +378,7 @@ const ManajemenLayananPage = () => {
                           }}
                           className="w-3.5 h-3.5 border-gray-300 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span
-                          className="text-[10px] text-gray-750 font-semibold truncate"
-                          title={req.label}
-                        >
+                        <span className="text-[10px] text-gray-750 font-semibold truncate" title={req.label}>
                           {req.label}
                         </span>
                       </label>
