@@ -287,8 +287,13 @@ const RegisterPage = () => {
                   className="text-blue-600 font-medium hover:underline"
                 >
                   Kebijakan Privasi
+<<<<<<< HEAD:src/features/auth/pages/RegisterPage.jsx
+                </a>{" "}
+                SI-RAT dalam pemrosesan data pribadi saya.
+=======
                 </Link>{" "}
                 CivicLink dalam pemrosesan data pribadi saya.
+>>>>>>> 5285bc4e00911c17a80396b8d09b075f5eac90c6:frontend/src/features/auth/pages/RegisterPage.jsx
               </label>
             </div>
 

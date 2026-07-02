@@ -13,7 +13,7 @@ const KelurahanLayout = ({ activePage, onNavigate, user, children }) => {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
-        appName="Village Command"
+        appName="SI-RAT"
         navItems={KELURAHAN_NAV_ITEMS}
         bottomItems={KELURAHAN_BOTTOM_ITEMS}
         activePage={activePage}
