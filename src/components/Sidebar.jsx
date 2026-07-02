@@ -44,11 +44,7 @@ const Sidebar = ({
       {/* Brand / Logo - Balanced with Topbar height (h-14) */}
       <div className="h-14 px-6 border-b border-gray-100 flex items-center flex-shrink-0">
         <span className="text-blue-600 font-extrabold text-[15px] tracking-wider uppercase">
-<<<<<<< HEAD:src/components/Sidebar.jsx
           SI-RAT
-=======
-          SI - Rat
->>>>>>> 5285bc4e00911c17a80396b8d09b075f5eac90c6:frontend/src/components/Sidebar.jsx
         </span>
       </div>
 
