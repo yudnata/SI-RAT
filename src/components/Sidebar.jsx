@@ -2,7 +2,7 @@
  * Sidebar - Shared sidebar component used across ALL roles.
  *
  * Props:
- * - `appName`   : string       - App/brand name shown at the top (default: "CivicLink")
+ * - `appName`   : string       - App/brand name shown at the top (default: "SI-RAT")
  * - `navItems`  : array        - Array of { id, label, icon } for the main navigation
  * - `activePage`: string       - Currently active page ID
  * - `onNavigate`: function     - Callback when a nav item is clicked
@@ -44,7 +44,7 @@ const Sidebar = ({
       {/* Brand / Logo - Balanced with Topbar height (h-14) */}
       <div className="h-14 px-6 border-b border-gray-100 flex items-center flex-shrink-0">
         <span className="text-blue-600 font-extrabold text-[15px] tracking-wider uppercase">
-          SI - Hari
+          SI-RAT
         </span>
       </div>
 

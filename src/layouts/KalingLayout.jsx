@@ -13,7 +13,7 @@ const KalingLayout = ({ activePage, onNavigate, user, children }) => {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
-        appName="Village Command"
+        appName="SI-RAT"
         navItems={KALING_NAV_ITEMS}
         bottomItems={KALING_BOTTOM_ITEMS}
         activePage={activePage}

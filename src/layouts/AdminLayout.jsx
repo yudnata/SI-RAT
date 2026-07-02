@@ -13,7 +13,7 @@ const AdminLayout = ({ activePage, onNavigate, user, children }) => {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
-        appName="Admin Console"
+        appName="SI-RAT"
         navItems={ADMIN_NAV_ITEMS}
         bottomItems={ADMIN_BOTTOM_ITEMS}
         activePage={activePage}

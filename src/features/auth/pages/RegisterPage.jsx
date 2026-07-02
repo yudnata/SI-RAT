@@ -285,7 +285,7 @@ const RegisterPage = ({ onNavigateToLogin }) => {
                 >
                   Kebijakan Privasi
                 </a>{" "}
-                CivicLink dalam pemrosesan data pribadi saya.
+                SI-RAT dalam pemrosesan data pribadi saya.
               </label>
             </div>
 

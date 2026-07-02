@@ -14,7 +14,7 @@ const MasyarakatLayout = ({ activePage, onNavigate, user, children }) => {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
-        appName="CivicLink"
+        appName="SI-RAT"
         navItems={MASYARAKAT_NAV_ITEMS}
         bottomItems={MASYARAKAT_BOTTOM_ITEMS}
         activePage={activePage}
