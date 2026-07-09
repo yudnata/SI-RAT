@@ -2,6 +2,27 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../../utils/api.js";
 
+const INDO_WORDS = [
+  'kucing', 'anjing', 'pohon', 'bunga', 'rumah', 'jalan', 'mobil', 'sepeda',
+  'gunung', 'laut', 'pantai', 'sungai', 'danau', 'langit', 'bintang', 'bulan',
+  'matahari', 'awan', 'hujan', 'angin', 'tanah', 'batu', 'pasir', 'api',
+  'air', 'es', 'kayu', 'besi', 'emas', 'perak', 'kertas', 'buku',
+  'pena', 'pensil', 'meja', 'kursi', 'pintu', 'jendela', 'dinding', 'atap',
+  'kamar', 'dapur', 'taman', 'pasar', 'sekolah', 'kantor', 'toko', 'sawah',
+  'hutan', 'kebun', 'burung', 'ikan', 'kupu', 'gajah', 'singa', 'harimau',
+  'kuda', 'sapi', 'kambing', 'ayam', 'bebek', 'kelinci', 'monyet', 'tupai'
+];
+
+const generatePassphrase = () => {
+  const count = Math.floor(Math.random() * 3) + 4; // 4 to 6 words
+  const words = [];
+  for (let i = 0; i < count; i++) {
+    const randomIndex = Math.floor(Math.random() * INDO_WORDS.length);
+    words.push(INDO_WORDS[randomIndex]);
+  }
+  return words.join('-');
+};
+
 const VerifikasiWargaPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -11,6 +32,14 @@ const VerifikasiWargaPage = () => {
 
   const selectedItemId = searchParams.get("item");
 
+  const [shouldSendEmail, setShouldSendEmail] = useState(true);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+
+  useEffect(() => {
+    setGeneratedPassword("");
+    setShouldSendEmail(true);
+  }, [selectedItemId]);
+
   const fetchQueue = async () => {
     try {
       const response = await api.get("/kelurahan/warga");
@@ -18,9 +47,12 @@ const VerifikasiWargaPage = () => {
         id: w.id,
         name: w.namaLengkap,
         gender: w.jenisKelamin || "Laki-laki",
-        age: 28, // Default visual fallback
+        age: 28,
         nik: w.nik,
         rt: w.domisili || "Banjar Tegal",
+        email: w.email || "-",
+        noWhatsapp: w.noWhatsapp || "-",
+        ktpUrl: w.ktpUrl || null,
         date: new Date(w.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
         status: w.isVerified ? "Disetujui" : "Menunggu",
       }));
@@ -50,10 +82,16 @@ const VerifikasiWargaPage = () => {
 
   const handleApprove = async (wargaId) => {
     try {
-      await api.patch(`/kelurahan/warga/${wargaId}/verify`, { isVerified: true });
-      setToast("Akun warga berhasil diverifikasi dan diaktifkan!");
+      const payload = { isVerified: true };
+      if (shouldSendEmail && generatedPassword) {
+        payload.password = generatedPassword;
+      }
+      await api.patch(`/kelurahan/warga/${wargaId}/verify`, payload);
+      setToast("Akun warga berhasil diverifikasi dan diaktifkan.");
       setTimeout(() => setToast(null), 4000);
       updateQuery({ item: "" });
+      setGeneratedPassword("");
+      setShouldSendEmail(true);
       fetchQueue();
     } catch (err) {
       alert(err.message || "Gagal memverifikasi akun.");
@@ -270,44 +308,97 @@ const VerifikasiWargaPage = () => {
 
               <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
                 <div>
-                  <span className="text-gray-400 block">
-                    Nomor Induk Kependudukan (NIK)
-                  </span>
-                  <span className="font-mono font-semibold text-gray-700">
-                    {selectedWarga.nik}
-                  </span>
+                  <span className="text-gray-400 block">Nomor Induk Kependudukan (NIK)</span>
+                  <span className="font-mono font-semibold text-gray-700">{selectedWarga.nik}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block">
-                    Wilayah Banjar / Lingkungan
-                  </span>
-                  <span className="font-semibold text-gray-700">
-                    {selectedWarga.rt}
-                  </span>
+                  <span className="text-gray-400 block">Wilayah Banjar / Lingkungan</span>
+                  <span className="font-semibold text-gray-700">{selectedWarga.rt}</span>
                 </div>
-                <div className="col-span-2">
-                  <span className="text-gray-400 block">Alamat KTP</span>
-                  <span className="text-gray-700 font-medium">
-                    Banjar {selectedWarga.rt}, Kelurahan Panjer, Denpasar Selatan, Bali
-                  </span>
+                <div>
+                  <span className="text-gray-400 block">Email</span>
+                  <span className="text-gray-700 font-medium">{selectedWarga.email}</span>
                 </div>
+                <div>
+                  <span className="text-gray-400 block">No. WhatsApp</span>
+                  <span className="text-gray-700 font-medium">{selectedWarga.noWhatsapp}</span>
+                </div>
+              </div>
+
+              {/* Foto KTP */}
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <span className="text-xs text-gray-400 block mb-2 font-semibold">Foto KTP</span>
+                {selectedWarga.ktpUrl ? (
+                  <a href={selectedWarga.ktpUrl} target="_blank" rel="noopener noreferrer" className="block">
+                    <img
+                      src={selectedWarga.ktpUrl}
+                      alt="Foto KTP"
+                      className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                    />
+                    <p className="text-[10px] text-blue-500 mt-1 text-center">Klik untuk buka full size</p>
+                  </a>
+                ) : (
+                  <div className="w-full h-24 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                    <p className="text-xs text-gray-400">Foto KTP tidak tersedia</p>
+                  </div>
+                )}
               </div>
             </div>
 
             {selectedWarga.status === "Menunggu" ? (
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  onClick={() => handleReject(selectedWarga.id)}
-                  className="flex-1 py-2 border border-red-200 hover:bg-red-50 text-red-650 rounded-lg text-xs font-bold transition-colors"
-                >
-                  Tolak Pendaftaran
-                </button>
-                <button
-                  onClick={() => handleApprove(selectedWarga.id)}
-                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
-                >
-                  Setujui & Aktifkan Akun
-                </button>
+              <div className="space-y-4 pt-2">
+                {/* Generate password and notify section */}
+                <div className="border border-amber-100 bg-amber-50/20 rounded-xl p-3.5 space-y-3 text-left">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={shouldSendEmail}
+                      onChange={(e) => setShouldSendEmail(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                    />
+                    Buat Password Baru & Kirim Email Notifikasi
+                  </label>
+
+                  {shouldSendEmail && (
+                    <div className="space-y-1.5 animate-fadeIn">
+                      <span className="text-[10px] text-gray-400 block font-semibold">PASSWORD LOG IN SEMENTARA</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Klik Generate atau isi password manual..."
+                          value={generatedPassword}
+                          onChange={(e) => setGeneratedPassword(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setGeneratedPassword(generatePassphrase())}
+                          className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-lg text-[10px] border border-blue-200 transition-colors shrink-0"
+                        >
+                          Generate
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-amber-600 leading-normal font-medium">
+                        * Password berupa 4-6 kata acak (passphrase) yang dikirim ke email pemohon agar mudah diingat dan aman.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => handleReject(selectedWarga.id)}
+                    className="flex-1 py-2 border border-red-200 hover:bg-red-50 text-red-650 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    Tolak Pendaftaran
+                  </button>
+                  <button
+                    onClick={() => handleApprove(selectedWarga.id)}
+                    className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
+                  >
+                    Setujui & Aktifkan Akun
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="pt-2 text-center">

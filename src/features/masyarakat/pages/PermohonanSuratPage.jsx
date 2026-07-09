@@ -138,6 +138,7 @@ const PermohonanSuratPage = () => {
 
         setSelectedItem({
           ...active,
+          dbId: active.id,
           name: active.service.name,
           id: active.submissionNumber,
           date: new Date(active.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
@@ -389,7 +390,7 @@ const PermohonanSuratPage = () => {
               {selectedItem.status === "SELESAI" ? (
                 <>
                   <button 
-                    onClick={() => handleDownload(selectedItem.id)}
+                    onClick={() => handleDownload(selectedItem.dbId)}
                     className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-colors text-sm"
                   >
                     <svg

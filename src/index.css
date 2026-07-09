@@ -4,6 +4,29 @@
   --font-sans:
     "Inter", "Roboto", "Helvetica Neue", "Arial Nova", "Nimbus Sans", Arial,
     sans-serif;
+
+  --animate-fadeInScale: fadeInScale 0.3s ease-out;
+  --animate-shimmer: shimmer 1.5s infinite linear;
+
+  @keyframes fadeInScale {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(300%);
+    }
+  }
 }
 
 * {

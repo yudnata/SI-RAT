@@ -1,8 +1,23 @@
-import { useMemo, useState, Fragment } from 'react';
+import { useMemo, useState, useEffect, Fragment } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getRequirementStatus } from '../../../data/userDocuments';
 import { FLOW_STEP_LABELS } from '../../../data/serviceData.jsx';
 import { api } from '../../../utils/api.js';
+
+// Helper to determine requirement availability dynamically from actual database documents
+const getDynamicRequirementStatus = (service, userDocs) => {
+  if (!service?.requirements || !service?.requirementKeys) return [];
+  return service.requirements.map((req, i) => {
+    const key = service.requirementKeys[i];
+    // Case-insensitive check for uploaded document key
+    const doc = userDocs.find(d => d.documentKey.toLowerCase() === key.toLowerCase());
+    return {
+      label: req,
+      key,
+      available: !!doc,
+      doc: doc ? { fileName: doc.fileName || doc.documentName, fileUrl: doc.fileUrl } : null,
+    };
+  });
+};
 
 // ─── Step Indicator ────────────────────────────────────────────────────────────
 const StepIndicator = ({ currentStep }) => {
@@ -43,8 +58,8 @@ const StepIndicator = ({ currentStep }) => {
 };
 
 // ─── Step 1: Persyaratan (with auto-fill) ───────────────────────────────────────
-const StepPersyaratan = ({ service, user, onNext, onCancel }) => {
-  const reqStatus = getRequirementStatus(service);
+const StepPersyaratan = ({ service, user, userDocs, onNext, onCancel }) => {
+  const reqStatus = getDynamicRequirementStatus(service, userDocs);
 
   return (
     <div className="space-y-5">
@@ -55,13 +70,13 @@ const StepPersyaratan = ({ service, user, onNext, onCancel }) => {
           {reqStatus.map((req) => (
             <li key={req.key} className="flex items-start gap-3 text-sm">
               {req.available ? (
-                <div className="flex-shrink-0 mt-0.5">
+                <div className="shrink-0 mt-0.5">
                   <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               ) : (
-                <div className="flex-shrink-0 mt-0.5">
+                <div className="shrink-0 mt-0.5">
                   <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
@@ -107,7 +122,7 @@ const StepPersyaratan = ({ service, user, onNext, onCancel }) => {
                 {FLOW_STEP_LABELS[step] || step}
               </span>
               {i < arr.length - 1 && (
-                <svg className="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <svg className="w-3 h-3 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
               )}
@@ -121,7 +136,7 @@ const StepPersyaratan = ({ service, user, onNext, onCancel }) => {
         )}
         <div className="mt-2.5 pt-2 border-t border-blue-200/50">
           <p className="text-[10px] text-blue-600 font-medium flex items-start gap-1">
-            <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
             </svg>
             <span className="leading-tight">Surat hasil akhir akan diterbitkan menggunakan <strong>Tanda Tangan Elektronik (TTE) / QR Code</strong> yang sah. Anda tidak perlu datang ke balai banjar atau kantor kelurahan untuk meminta tanda tangan basah.</span>
@@ -137,18 +152,18 @@ const StepPersyaratan = ({ service, user, onNext, onCancel }) => {
             <label className="block text-xs font-medium text-gray-500 mb-1">NIK</label>
             <input
               readOnly
-              value={user?.nik ?? '3275012345678901'}
+              value={user?.nik || '—'}
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 cursor-not-allowed"
             />
-            <p className="text-xs text-blue-500 mt-1">* Auto terisi dari Dokumen Saya</p>
+            <p className="text-xs text-blue-500 mt-1">* Auto terisi dari Profil Kependudukan Anda</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Nama Lengkap</label>
-            <input readOnly value={user?.name ?? 'Budi Santoso'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 cursor-not-allowed" />
+            <input readOnly value={user?.namaLengkap || user?.name || '—'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 cursor-not-allowed" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">No. Kartu Keluarga</label>
-            <input readOnly value={user?.kk ?? '3275009876543210'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 cursor-not-allowed" />
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status Verifikasi Akun</label>
+            <input readOnly value={user?.isVerified ? "AKTIF & TERVERIFIKASI" : "BELUM VERIFIKASI"} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-green-700 font-bold cursor-not-allowed" />
           </div>
         </div>
       </div>
@@ -218,10 +233,10 @@ const DynamicField = ({ field, value, onChange }) => {
 };
 
 // ─── Step 2: Formulir (Dynamic fields) ──────────────────────────────────────────
-const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack, files, setFiles }) => {
+const StepFormulir = ({ service, user, userDocs, formData, setFormData, onNext, onBack, files, setFiles, filePreviews, setFilePreviews }) => {
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const specificFields = service.specificFields || [];
-  const reqStatus = getRequirementStatus(service);
+  const reqStatus = getDynamicRequirementStatus(service, userDocs);
   const needsUpload = reqStatus.filter(r => !r.available);
 
   const handleNextClick = () => {
@@ -268,7 +283,7 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack, fi
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">NIK (Nomor Induk Kependudukan)</label>
           <div className="relative">
-            <input readOnly value={user?.nik ?? '3275012345678901'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 cursor-not-allowed pr-9" />
+            <input readOnly value={user?.nik || '—'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 cursor-not-allowed pr-9" />
             <svg className="w-4 h-4 text-gray-400 absolute right-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
             </svg>
@@ -279,7 +294,7 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack, fi
         {/* Nama Lengkap */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Nama Lengkap</label>
-          <input readOnly value={user?.namaLengkap ?? user?.name ?? 'Budi Santoso'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 cursor-not-allowed" />
+          <input readOnly value={user?.namaLengkap || user?.name || '—'} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 cursor-not-allowed" />
         </div>
 
         {/* Tempat Lahir */}
@@ -332,7 +347,7 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack, fi
       {/* Dynamic service-specific fields */}
       {specificFields.length > 0 && (
         <div className="border-t border-gray-100 pt-4 space-y-4">
-          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-gray-750 flex items-center gap-2">
             <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
             </svg>
@@ -382,26 +397,77 @@ const StepFormulir = ({ service, user, formData, setFormData, onNext, onBack, fi
             <p className="text-[10px] text-amber-600 font-medium mb-2">Dokumen berikut perlu dilampirkan manual:</p>
             {needsUpload.map((r) => {
               const fileSelected = files[r.key];
+              const preview = filePreviews[r.key];
               return (
                 <div 
                   key={r.key} 
-                  className={`border-2 border-dashed rounded-lg p-3 text-center transition-all cursor-pointer relative
-                    ${fileSelected ? 'border-green-400 bg-green-50/20' : 'border-gray-300 hover:border-blue-400'}`}
+                  className="border border-gray-200 rounded-xl p-3 flex items-center gap-4 bg-gray-50/50 hover:bg-gray-50 transition-colors relative"
                 >
                   <input
                     type="file"
                     id={`file-input-${r.key}`}
                     onChange={(e) => {
-                      if (e.target.files[0]) {
-                        setFiles({ ...files, [r.key]: e.target.files[0] });
+                      const file = e.target.files[0];
+                      if (file) {
+                        setFiles({ ...files, [r.key]: file });
+                        if (file.type.startsWith("image/")) {
+                          setFilePreviews({ ...filePreviews, [r.key]: URL.createObjectURL(file) });
+                        } else {
+                          setFilePreviews({ ...filePreviews, [r.key]: "pdf" });
+                        }
                       }
                     }}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
-                  <p className={`text-xs font-semibold ${fileSelected ? 'text-green-700' : 'text-gray-500'}`}>{r.label}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
-                    {fileSelected ? `Terpilih: ${fileSelected.name} (${(fileSelected.size / 1024).toFixed(1)} KB)` : 'Klik untuk upload — JPG, PNG, PDF (maks. 5MB)'}
-                  </p>
+                  
+                  {!fileSelected ? (
+                    <>
+                      <div className="w-10 h-10 rounded-lg border border-dashed border-gray-300 flex items-center justify-center shrink-0">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                        </svg>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-semibold text-gray-600">{r.label}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Klik untuk upload — JPG, PNG, PDF (maks. 5MB)</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {preview && preview !== "pdf" ? (
+                        <img src={preview} alt="Preview" className="w-16 h-12 object-cover rounded-lg border border-gray-300 shrink-0" />
+                      ) : (
+                        <div className="w-16 h-12 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
+                          <span className="text-[10px] font-bold text-red-500">PDF</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-xs font-semibold text-gray-805 truncate">{r.label}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5 truncate">{fileSelected.name} ({(fileSelected.size / 1024).toFixed(0)} KB)</p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const newFiles = { ...files };
+                            delete newFiles[r.key];
+                            setFiles(newFiles);
+                            const newPreviews = { ...filePreviews };
+                            delete newPreviews[r.key];
+                            setFilePreviews(newPreviews);
+                          }}
+                          className="mt-1 text-[9px] text-red-500 hover:text-red-700 font-bold transition-colors relative z-10"
+                        >
+                          Hapus & ganti
+                        </button>
+                      </div>
+                      <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <svg className="w-3.5 h-3.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -445,15 +511,15 @@ const Row = ({ label, value }) => (
   </div>
 );
 
-const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack, files, submitting, submitError }) => {
+const StepKonfirmasi = ({ service, user, userDocs, formData, onSubmit, onBack, files, submitting, submitError }) => {
   const specificFields = service.specificFields || [];
-  const reqStatus = getRequirementStatus(service);
+  const reqStatus = getDynamicRequirementStatus(service, userDocs);
 
   return (
     <div className="space-y-5">
       {submitError && (
         <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
           {submitError}
         </div>
       )}
@@ -465,13 +531,13 @@ const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack, files, subm
           label="Data Pribadi"
         />
         <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-          <Row label="NIK (Nomor Induk Kependudukan)" value={user?.nik ?? '3275012304920005'} />
-          <Row label="Nama Lengkap" value={user?.namaLengkap ?? user?.name ?? 'BUDI SANTOSO'} />
-          <Row label="Tempat & Tanggal Lahir" value={formData.tempatLahir ? `${formData.tempatLahir}, ${formData.tanggalLahir}` : 'Denpasar, 12 April 1992'} />
-          <Row label="Jenis Kelamin / Agama" value={`${formData.jenisKelamin || 'Laki-Laki'} / ${formData.agama || 'Hindu'}`} />
-          <Row label="Pekerjaan" value={formData.pekerjaan || 'Karyawan Swasta'} />
+          <Row label="NIK (Nomor Induk Kependudukan)" value={user?.nik || '—'} />
+          <Row label="Nama Lengkap" value={user?.namaLengkap || user?.name || '—'} />
+          <Row label="Tempat & Tanggal Lahir" value={formData.tempatLahir && formData.tanggalLahir ? `${formData.tempatLahir}, ${formData.tanggalLahir}` : '—'} />
+          <Row label="Jenis Kelamin / Agama" value={`${formData.jenisKelamin || '—'} / ${formData.agama || '—'}`} />
+          <Row label="Pekerjaan" value={formData.pekerjaan || '—'} />
           <div className="col-span-2">
-            <Row label="Alamat Lengkap (Sesuai KTP)" value={formData.alamat || 'Jl. Kamboja No. 5, Banjar Anyar, Kel. Panjer, Kec. Denpasar Selatan, Kota Denpasar, Bali 80225'} />
+            <Row label="Alamat Lengkap (Sesuai KTP)" value={formData.alamat || '—'} />
           </div>
         </div>
       </div>
@@ -505,7 +571,7 @@ const StepKonfirmasi = ({ service, user, formData, onSubmit, onBack, files, subm
                 {FLOW_STEP_LABELS[step] || step}
               </span>
               {i < arr.length - 1 && (
-                <svg className="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <svg className="w-3 h-3 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
               )}
@@ -572,8 +638,27 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [files, setFiles] = useState({});
+  const [filePreviews, setFilePreviews] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+
+  const [userDocs, setUserDocs] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+
+  // Fetch actual personal documents of logged in user from database
+  useEffect(() => {
+    const fetchUserDocs = async () => {
+      try {
+        const response = await api.get("/users/documents");
+        setUserDocs(response.data.documents || []);
+      } catch (err) {
+        console.error("Gagal memuat dokumen user:", err);
+      } finally {
+        setLoadingDocs(false);
+      }
+    };
+    fetchUserDocs();
+  }, []);
 
   const currentStep = useMemo(() => {
     const rawStep = Number(searchParams.get("step") || 1);
@@ -676,13 +761,13 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
       {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="px-7 pt-7 pb-5 border-b border-gray-100 flex-shrink-0">
+        <div className="px-7 pt-7 pb-5 border-b border-gray-100 shrink-0">
           <div className="flex items-start justify-between mb-1">
             <div>
               <h2 className="text-base font-bold text-gray-900">{stepTitles[currentStep]}</h2>
               <p className="text-xs text-gray-400 mt-0.5">{stepSubtitles[currentStep]}</p>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors ml-4 flex-shrink-0">
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors ml-4 shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -693,14 +778,26 @@ const SubmissionModal = ({ service, user, onClose, onSuccess }) => {
 
         {/* Body - scrollable */}
         <div className="overflow-y-auto flex-1 px-7 py-5">
-          {currentStep === 1 && (
-            <StepPersyaratan service={service} user={user} onNext={() => updateStep(2)} onCancel={handleClose} />
-          )}
-          {currentStep === 2 && (
-            <StepFormulir service={service} user={user} formData={formData} setFormData={setFormData} onNext={() => updateStep(3)} onBack={() => updateStep(1)} files={files} setFiles={setFiles} />
-          )}
-          {currentStep === 3 && (
-            <StepKonfirmasi service={service} user={user} formData={formData} onSubmit={handleSubmit} onBack={() => updateStep(2)} files={files} submitting={submitting} submitError={submitError} />
+          {loadingDocs ? (
+            <div className="text-center py-12 text-xs text-gray-400 font-semibold flex flex-col items-center gap-2">
+              <svg className="animate-spin w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Memverifikasi ketersediaan dokumen Anda...
+            </div>
+          ) : (
+            <>
+              {currentStep === 1 && (
+                <StepPersyaratan service={service} user={user} userDocs={userDocs} onNext={() => updateStep(2)} onCancel={handleClose} />
+              )}
+              {currentStep === 2 && (
+                <StepFormulir service={service} user={user} userDocs={userDocs} formData={formData} setFormData={setFormData} onNext={() => updateStep(3)} onBack={() => updateStep(1)} files={files} setFiles={setFiles} filePreviews={filePreviews} setFilePreviews={setFilePreviews} />
+              )}
+              {currentStep === 3 && (
+                <StepKonfirmasi service={service} user={user} userDocs={userDocs} formData={formData} onSubmit={handleSubmit} onBack={() => updateStep(2)} files={files} submitting={submitting} submitError={submitError} />
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../../../utils/api.js";
 
-const SettingsForm = ({ currentUser, setCurrentUser }) => {
+const SettingsForm = ({ currentUser, setCurrentUser, onLogout }) => {
   const [form, setForm] = useState({
     noWhatsapp: currentUser?.noWhatsapp || "",
     alamat: currentUser?.alamat || "",
@@ -11,6 +11,7 @@ const SettingsForm = ({ currentUser, setCurrentUser }) => {
     agama: currentUser?.agama || "Hindu",
     pekerjaan: currentUser?.pekerjaan || "",
     domisili: currentUser?.domisili || "",
+    kelurahan: currentUser?.kelurahan || "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -176,12 +177,23 @@ const SettingsForm = ({ currentUser, setCurrentUser }) => {
             />
           </div>
 
-          {/* Domisili (Readonly / Locked) */}
+          {/* Kelurahan (Readonly / Locked) */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Domisili (Terkunci)</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Kelurahan (Terkunci)</label>
             <input
               type="text"
-              value={form.domisili}
+              value={form.kelurahan || "-"}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-250 rounded-lg text-xs bg-gray-50 text-gray-400 cursor-not-allowed"
+            />
+          </div>
+
+          {/* Domisili (Readonly / Locked) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Banjar / Lingkungan (Terkunci)</label>
+            <input
+              type="text"
+              value={form.domisili || "-"}
               readOnly
               className="w-full px-3 py-2 border border-gray-250 rounded-lg text-xs bg-gray-50 text-gray-400 cursor-not-allowed"
             />
@@ -201,7 +213,17 @@ const SettingsForm = ({ currentUser, setCurrentUser }) => {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-between items-center pt-2">
+          {/* Logout */}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all"
+            >
+              Keluar (Logout)
+            </button>
+          )}
           <button
             type="submit"
             disabled={saving}

@@ -50,6 +50,22 @@ const DokumenPage = () => {
   const [docName, setDocName] = useState(DOC_STYLES["KTP"].name);
   const [docNumber, setDocNumber] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadedFile(file);
+      if (file.type.startsWith("image/")) {
+        setFilePreview(URL.createObjectURL(file));
+      } else {
+        setFilePreview("pdf");
+      }
+    } else {
+      setUploadedFile(null);
+      setFilePreview(null);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -130,6 +146,7 @@ const DokumenPage = () => {
       setDocName(DOC_STYLES["KTP"].name);
       setDocNumber("");
       setUploadedFile(null);
+      setFilePreview(null);
       
       fetchData(); // Reload
     } catch (err) {
@@ -258,68 +275,82 @@ const DokumenPage = () => {
                     >
                       {/* Visual Card Component */}
                       <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-center">
-                        <div
-                          className={`w-full aspect-[1.58/1] rounded-xl bg-gradient-to-br p-3.5 shadow-md flex flex-col justify-between relative overflow-hidden ${doc.bgClass}`}
-                        >
-                          <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/10 blur-xl"></div>
-                          <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-black/10 blur-md"></div>
+                        {doc.fileUrl && !doc.fileName?.toLowerCase().endsWith('.pdf') ? (
+                          <div className="w-full aspect-[1.58/1] rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden relative group">
+                            <img
+                              src={doc.fileUrl}
+                              alt={doc.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            {/* Subtle overlay badge */}
+                            <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-slate-900/60 backdrop-blur-sm rounded text-[9px] font-bold text-white uppercase tracking-wider">
+                              {doc.key.toUpperCase()}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            className={`w-full aspect-[1.58/1] rounded-xl bg-gradient-to-br p-3.5 shadow-md flex flex-col justify-between relative overflow-hidden ${doc.bgClass}`}
+                          >
+                            <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/10 blur-xl"></div>
+                            <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-black/10 blur-md"></div>
 
-                          {/* Card Header */}
-                          <div className="flex items-start justify-between relative z-10">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-5 h-5 bg-white/20 rounded flex items-center justify-center backdrop-blur-sm">
+                            {/* Card Header */}
+                            <div className="flex items-start justify-between relative z-10">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 bg-white/20 rounded flex items-center justify-center backdrop-blur-sm">
+                                  <svg
+                                    className="w-3 h-3 text-white"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2.5}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+                                    />
+                                  </svg>
+                                </div>
+                                <span className="text-[9px] font-bold tracking-widest uppercase opacity-90">
+                                  REPUBLIK INDONESIA
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="relative z-10 flex gap-3 items-end">
+                              <div className="w-9 h-11 bg-white/20 rounded border border-white/30 flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
                                 <svg
-                                  className="w-3 h-3 text-white"
+                                  className="w-6 h-6 opacity-60"
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
-                                  strokeWidth={2.5}
+                                  strokeWidth={1.5}
                                 >
                                   <path
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
-                                    d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+                                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0"
                                   />
                                 </svg>
                               </div>
-                              <span className="text-[9px] font-bold tracking-widest uppercase opacity-90">
-                                REPUBLIK INDONESIA
-                              </span>
+
+                              <div className="flex-1 min-w-0 leading-none space-y-1">
+                                <p className="text-[7px] uppercase font-bold tracking-wider opacity-60">
+                                  DOKUMEN WARGA
+                                </p>
+                                <p className="text-[10px] font-extrabold tracking-wide truncate uppercase">
+                                  {doc.name.split(" ")[0]}
+                                </p>
+                                <div className="h-0.5 w-8 bg-white/30 rounded"></div>
+                                <p className="text-[8px] font-mono tracking-wider opacity-85">
+                                  {doc.key.toUpperCase()}
+                                </p>
+                              </div>
                             </div>
                           </div>
-
-                          {/* Card Body */}
-                          <div className="relative z-10 flex gap-3 items-end">
-                            <div className="w-9 h-11 bg-white/20 rounded border border-white/30 flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
-                              <svg
-                                className="w-6 h-6 opacity-60"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={1.5}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0"
-                                />
-                              </svg>
-                            </div>
-
-                            <div className="flex-1 min-w-0 leading-none space-y-1">
-                              <p className="text-[7px] uppercase font-bold tracking-wider opacity-60">
-                                DOKUMEN WARGA
-                              </p>
-                              <p className="text-[10px] font-extrabold tracking-wide truncate uppercase">
-                                {doc.name.split(" ")[0]}
-                              </p>
-                              <div className="h-0.5 w-8 bg-white/30 rounded"></div>
-                              <p className="text-[8px] font-mono tracking-wider opacity-85">
-                                {doc.key.toUpperCase()}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                        )}
                       </div>
 
                       {/* Card Content Details */}
@@ -485,6 +516,8 @@ const DokumenPage = () => {
               onClick={() => {
                 updateQuery({ modal: "" });
                 setErrorMsg("");
+                setUploadedFile(null);
+                setFilePreview(null);
               }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >
@@ -558,38 +591,60 @@ const DokumenPage = () => {
                 <label className="block text-[11px] font-bold text-gray-750 mb-1">
                   Unggah File Dokumen
                 </label>
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer relative">
-                  <input
-                    type="file"
-                    onChange={(e) => {
-                      if (e.target.files[0]) {
-                        setUploadedFile(e.target.files[0]);
-                      }
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  />
-                  <svg
-                    className="w-8 h-8 text-gray-400 mb-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"
+                {!uploadedFile ? (
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
                     />
-                  </svg>
-                  <span className="text-xs font-semibold text-gray-700">
-                    {uploadedFile
-                      ? uploadedFile.name
-                      : "Pilih file atau drag & drop"}
-                  </span>
-                  <span className="text-[9px] text-gray-400 mt-0.5">
-                    PNG, JPG, PDF (Maks. 5MB)
-                  </span>
-                </div>
+                    <svg
+                      className="w-8 h-8 text-gray-400 mb-1"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"
+                      />
+                    </svg>
+                    <span className="text-xs font-semibold text-gray-700">
+                      Pilih file atau drag & drop
+                    </span>
+                    <span className="text-[9px] text-gray-400 mt-0.5">
+                      PNG, JPG, PDF (Maks. 5MB)
+                    </span>
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-xl p-4 flex items-center gap-4 bg-gray-50">
+                    {filePreview && filePreview !== "pdf" ? (
+                      <img src={filePreview} alt="Preview Dokumen" className="w-20 h-14 object-cover rounded-lg border border-gray-300 shrink-0" />
+                    ) : (
+                      <div className="w-20 h-14 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-red-500">PDF</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{uploadedFile.name}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{(uploadedFile.size / 1024).toFixed(0)} KB</p>
+                      <button
+                        type="button"
+                        onClick={() => { setUploadedFile(null); setFilePreview(null); }}
+                        className="mt-1 text-[10px] text-red-500 hover:text-red-700 font-bold transition-colors"
+                      >
+                        Hapus & ganti
+                      </button>
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                      <svg className="w-3.5 h-3.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -598,6 +653,8 @@ const DokumenPage = () => {
                   onClick={() => {
                     updateQuery({ modal: "" });
                     setErrorMsg("");
+                    setUploadedFile(null);
+                    setFilePreview(null);
                   }}
                   disabled={uploading}
                   className="flex-1 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"

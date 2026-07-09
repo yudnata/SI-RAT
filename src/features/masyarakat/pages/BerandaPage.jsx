@@ -32,7 +32,7 @@ const BerandaPage = ({ user }) => {
     const fetchSubmissions = async () => {
       try {
         const response = await api.get("/submissions?limit=100");
-        const list = response.data || [];
+        const list = Array.isArray(response.data) ? response.data : (response.data?.submissions || []);
         
         const total = list.length;
         const processing = list.filter(s => ["DIPROSES", "VERIFIKASI_KALING", "VERIFIKASI_KELURAHAN"].includes(s.status)).length;
